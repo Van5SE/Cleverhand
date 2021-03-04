@@ -4,6 +4,30 @@
 2021年大学生服创比赛 信手拈来团队比赛项目
 基于mediapipe的手势识别系统
 
+# 目录
+<pre>
+│  app.py
+│  keypoint_classification.ipynb
+│  point_history_classification.ipynb
+│  
+├─model
+│  ├─keypoint_classifier
+│  │  │  keypoint.csv
+│  │  │  keypoint_classifier.hdf5
+│  │  │  keypoint_classifier.py
+│  │  │  keypoint_classifier.tflite
+│  │  └─ keypoint_classifier_label.csv
+│  │          
+│  └─point_history_classifier
+│      │  point_history.csv
+│      │  point_history_classifier.hdf5
+│      │  point_history_classifier.py
+│      │  point_history_classifier.tflite
+│      └─ point_history_classifier_label.csv
+│          
+└─utils
+    └─cvfpscalc.py
+
 #### 软件架构
 软件架构说明
 
