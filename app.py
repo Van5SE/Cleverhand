@@ -79,7 +79,7 @@ def main():
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
         static_image_mode=use_static_image_mode,
-        max_num_hands=4,
+        max_num_hands=1,
         min_detection_confidence=min_detection_confidence,
         min_tracking_confidence=min_tracking_confidence,
     )
@@ -178,16 +178,30 @@ def main():
                     middle_line=calc_middle_line(landmark_list[8],landmark_list[4]) #计算中间线长度
                     hukou_line=calc_hukou_line(landmark_list[2],landmark_list[5]) #计算虎口长度
 
-                    debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],middle_point) #画出中间线
+                    # debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],middle_point) #画出中间线
                     
                     porinter_history.append([0,0])
                     middle_point_history.appendleft(middle_point)
                     # middle_line_history.appendleft(middle_line)
                     middle_hukou_history.appendleft(middle_line/hukou_line)
 
-                    print(middle_hukou_history)
+                    # print(middle_hukou_history)
                     func_mouse(debug_image,middle_point_history,middle_hukou_history)
-                    
+
+                elif hand_sign_id == 4:   # 如果是抓住的手势
+                    middle_point=calc_middle_point(landmark_list[8],landmark_list[4]) #计算中间点
+                    middle_line=calc_middle_line(landmark_list[8],landmark_list[4]) #计算中间线长度
+                    hukou_line=calc_hukou_line(landmark_list[2],landmark_list[5]) #计算虎口长度
+                    debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],middle_point) #画出中间线
+
+                    porinter_history.append([0,0])
+                    middle_point_history.appendleft(middle_point)
+                    # middle_line_history.appendleft(middle_line)
+                    middle_hukou_history.appendleft(middle_line/hukou_line)
+
+                    # print(middle_hukou_history)
+                    func_grab(debug_image,middle_point_history,middle_hukou_history)
+
                 else:
                     porinter_history.append([0, 0])
                     middle_point_history.appendleft([0,0])
@@ -241,7 +255,6 @@ def select_mode(key, mode):
     if key == 104:  # h
         mode = 2
     return number, mode
-
 
 def calc_bounding_rect(image, landmarks):
     #计算外接矩形
@@ -593,7 +606,6 @@ def draw_point_history(image, point_history):
                       (152, 251, 152), 2)
     return image
 
-
 def draw_info(image, fps, mode, number):
     #画面左上方打印fps等信息
     cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
@@ -645,19 +657,15 @@ def func_mouse(image,middle_point_history,middle_hukou_history):
         else :
             open_mh_array.append(middle_hukou_history[i])
     
-    print(close_mh_array)
-
-    print(open_mh_array)
-
     mouse=Controller()
     if max(middle_hukou_history)==inf_middle_hukou:
         pass #存在过往误判 鼠标初始化未完成 不进行操作
     elif len(close_mh_array)==8:
         mouse.click(Button.right)
-        print("单击鼠标右键")
+        # print("单击鼠标右键")
     elif middle_hukou_history[0]>close_middle_hukou and middle_hukou_history[1]<close_middle_hukou and len(open_mh_array)>1:
-        mouse.click(Button.left)
-        print("单击鼠标左键")
+        mouse.click(Button.left,2)
+        # print("双击鼠标左键")
     else:
         move_distance_x = (middle_point_history[0][0]-middle_point_history[1][0]) #防颤抖
         move_distance_y = (middle_point_history[0][1]-middle_point_history[1][1])
@@ -671,22 +679,111 @@ def func_mouse(image,middle_point_history,middle_hukou_history):
             
             if mouseLocx<0:
                 mouseLocx=0
-                print("鼠标越界")
+                # print("鼠标越界")
             elif mouseLocx>=screen_width:
                 mouseLocx=screen_width-1
-                print("鼠标越界")
+                # print("鼠标越界")
             if mouseLocy<0:
                 mouseLocy=0
-                print("鼠标越界")
+                # print("鼠标越界")
             elif mouseLocy>=screen_height:
                 mouseLocy=screen_height-1
-                print("鼠标越界")
-            print("鼠标移动")
+                # print("鼠标越界")
+            # print("鼠标移动")
+            mouseLoc=(mouseLocx,mouseLocy)
+            # print(mouseLoc)
+            mouse.position=mouseLoc
+            while mouse.position!=mouseLoc:
+                pass
+
+def func_grab(image,middle_point_history,middle_hukou_history):
+#执行抓取功能 待完善
+    args = get_args()
+
+    inf_middle_hukou = args.inf_middle_hukou
+    close_middle_hukou = args.close_middle_hukou
+
+    screen_width = args.swidth
+    screen_height = args.sheight
+
+
+    image_width, image_height = image.shape[1], image.shape[0]
+
+    close_mh_array=[]
+    open_mh_array=[]
+
+    for i in range(len(middle_hukou_history)):
+        if middle_hukou_history[i]<close_middle_hukou:
+            close_mh_array.append(middle_hukou_history[i])
+        else :
+            open_mh_array.append(middle_hukou_history[i])
+    
+    mouse=Controller()
+    if max(middle_hukou_history)==inf_middle_hukou:
+        pass #存在过往误判 鼠标初始化未完成 不进行操作
+    elif len(close_mh_array)>=4:
+        mouse.press(Button.left) # 按下鼠标左键进行拖动
+        print("按下鼠标左键")
+        move_distance_x = (middle_point_history[0][0]-middle_point_history[1][0]) #防颤抖
+        move_distance_y = (middle_point_history[0][1]-middle_point_history[1][1])
+        if abs(move_distance_x)<3 and abs(move_distance_y)<3:
+            pass
+        else :
+            mx=middle_point_history[0][0]
+            my=middle_point_history[0][1]
+            mouseLocx=int((mx-0.12*image_width)/(0.6*image_width)*screen_width) #通过按比例缩小使得鼠标操控周围
+            mouseLocy=int((my-0.25*image_height)/(0.5*image_height)*screen_height)
+            
+            if mouseLocx<0:
+                mouseLocx=0
+                # print("鼠标越界")
+            elif mouseLocx>=screen_width:
+                mouseLocx=screen_width-1
+                # print("鼠标越界")
+            if mouseLocy<0:
+                mouseLocy=0
+                # print("鼠标越界")
+            elif mouseLocy>=screen_height:
+                mouseLocy=screen_height-1
+                # print("鼠标越界")
+            # print("鼠标移动")
             mouseLoc=(mouseLocx,mouseLocy)
             print(mouseLoc)
             mouse.position=mouseLoc
             while mouse.position!=mouseLoc:
                 pass
+    else:
+        mouse.release(Button.left) # 松开鼠标左键进行拖动
+        print("松开")
+        move_distance_x = (middle_point_history[0][0]-middle_point_history[1][0]) #防颤抖
+        move_distance_y = (middle_point_history[0][1]-middle_point_history[1][1])
+        if abs(move_distance_x)<3 and abs(move_distance_y)<3:
+            pass
+        else :
+            mx=middle_point_history[0][0]
+            my=middle_point_history[0][1]
+            mouseLocx=int((mx-0.12*image_width)/(0.6*image_width)*screen_width) #通过按比例缩小使得鼠标操控周围
+            mouseLocy=int((my-0.25*image_height)/(0.5*image_height)*screen_height)
+            
+            if mouseLocx<0:
+                mouseLocx=0
+                # print("鼠标越界")
+            elif mouseLocx>=screen_width:
+                mouseLocx=screen_width-1
+                # print("鼠标越界")
+            if mouseLocy<0:
+                mouseLocy=0
+                # print("鼠标越界")
+            elif mouseLocy>=screen_height:
+                mouseLocy=screen_height-1
+                # print("鼠标越界")
+            # print("鼠标移动")
+            mouseLoc=(mouseLocx,mouseLocy)
+            print(mouseLoc)
+            mouse.position=mouseLoc
+            while mouse.position!=mouseLoc:
+                pass
+
 
 if __name__ == '__main__':
     main()
