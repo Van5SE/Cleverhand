@@ -79,7 +79,7 @@ def main():
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
         static_image_mode=use_static_image_mode,
-        max_num_hands=1,
+        max_num_hands=2,
         min_detection_confidence=min_detection_confidence,
         min_tracking_confidence=min_tracking_confidence,
     )
@@ -88,7 +88,7 @@ def main():
 
     point_history_classifier = PointHistoryClassifier()
 
-    # 加载标签 ###########################################################
+    # 加载模型 ###########################################################
     with open('model/keypoint_classifier/keypoint_classifier_label.csv',
               encoding='utf-8-sig') as f:
         keypoint_classifier_labels = csv.reader(f)
@@ -107,13 +107,15 @@ def main():
     cvFpsCalc = CvFpsCalc(buffer_len=10)
 
     # 各种历史记录数组 #################################################################
-    porinter_history = deque(maxlen=16) # 食指尖坐标历史记录
+    pointer_history = deque(maxlen=16) # 食指尖坐标历史记录
     finger_gesture_history = deque(maxlen=16) # 手指手势历史记录
     middle_point_history = deque(maxlen=8) #食指大拇指中间点坐标历史记录
     middle_line_history =  deque(maxlen=8) #食指大拇指中间线长度历史记录
     middle_hukou_history = deque(maxlen=8) #中间线与虎口长度的比值的历史记录
 
     for i in range(8):
+        pointer_history.append([0,0])
+        pointer_history.append([0,0])
         middle_point_history.append([0.0])
         # middle_line_history.append(9999)
         middle_hukou_history.append(inf_middle_hukou)
@@ -159,7 +161,7 @@ def main():
                 pre_processed_landmark_list = pre_process_landmark(
                     landmark_list)
                 pre_processed_point_history_list = pre_process_point_history(
-                    debug_image, porinter_history)
+                    debug_image, pointer_history)
                 # 保存学习数据
                 logging_csv(number, mode, pre_processed_landmark_list,
                             pre_processed_point_history_list)
@@ -167,43 +169,53 @@ def main():
                 # 手势分类
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
                 
-                if hand_sign_id == 2:  # 如果是伸出食指的手势
-                    porinter_history.append(landmark_list[8])  # 保存食指坐标
+                
+                if hand_sign_id == 0:
+                    pointer_history.append(landmark_list[8])  # 保存食指坐标
                     middle_point_history.appendleft([0,0])
                     # middle_line_history.appendleft(9999)
                     middle_hukou_history.appendleft(inf_middle_hukou)
+
+                    debug_image = draw_pointer(debug_image, pointer_history)
+
+                elif hand_sign_id == 2:  # 如果是伸出食指的手势
+                    pointer_history.append(landmark_list[8])  # 保存食指坐标
+                    middle_point_history.appendleft([0,0])
+                    # middle_line_history.appendleft(9999)
+                    middle_hukou_history.appendleft(inf_middle_hukou)
+
+                    debug_image = draw_pointer(debug_image, pointer_history)
 
                 elif hand_sign_id == 3:   # 如果是鼠标的手势
                     middle_point=calc_middle_point(landmark_list[8],landmark_list[4]) #计算中间点
                     middle_line=calc_middle_line(landmark_list[8],landmark_list[4]) #计算中间线长度
                     hukou_line=calc_hukou_line(landmark_list[2],landmark_list[5]) #计算虎口长度
 
-                    # debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],middle_point) #画出中间线
-                    
-                    porinter_history.append([0,0])
+                    pointer_history.append([0,0])
                     middle_point_history.appendleft(middle_point)
                     # middle_line_history.appendleft(middle_line)
                     middle_hukou_history.appendleft(middle_line/hukou_line)
 
                     # print(middle_hukou_history)
+                    debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],middle_point) #画出中间线
                     func_mouse(debug_image,middle_point_history,middle_hukou_history)
 
                 elif hand_sign_id == 4:   # 如果是抓住的手势
                     middle_point=calc_middle_point(landmark_list[8],landmark_list[4]) #计算中间点
                     middle_line=calc_middle_line(landmark_list[8],landmark_list[4]) #计算中间线长度
                     hukou_line=calc_hukou_line(landmark_list[2],landmark_list[5]) #计算虎口长度
-                    debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],middle_point) #画出中间线
 
-                    porinter_history.append([0,0])
+                    pointer_history.append([0,0])
                     middle_point_history.appendleft(middle_point)
                     # middle_line_history.appendleft(middle_line)
                     middle_hukou_history.appendleft(middle_line/hukou_line)
 
                     # print(middle_hukou_history)
+                    debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],middle_point) #画出中间线
                     func_grab(debug_image,middle_point_history,middle_hukou_history)
 
                 else:
-                    porinter_history.append([0, 0])
+                    pointer_history.append([0, 0])
                     middle_point_history.appendleft([0,0])
                     # middle_line_history.appendleft(9999)
                     middle_hukou_history.appendleft(inf_middle_hukou)
@@ -218,7 +230,7 @@ def main():
                 # 计算最近检测中最多的手势ID
                 finger_gesture_history.append(finger_gesture_id)
                 most_common_fg_id = Counter(
-                    finger_gesture_history).most_common() # 根据历史的16个点的数据得到出现最多的手指手势作为置信手势
+                    finger_gesture_history).most_common()[0][0] # 根据历史的16个点的数据得到出现最多的手指手势作为置信手势
 
                 # 画出相关数据 fps/外接矩形/关键点/手势信息等
                 debug_image = draw_bounding_rect(use_brect, debug_image, brect)
@@ -228,12 +240,12 @@ def main():
                     brect,
                     handedness,
                     keypoint_classifier_labels[hand_sign_id],
-                    point_history_classifier_labels[most_common_fg_id[0][0]],
+                    point_history_classifier_labels[most_common_fg_id],
                 )
-        else:
-            porinter_history.append([0, 0])
 
-        debug_image = draw_point_history(debug_image, porinter_history)
+        else:
+            pass
+
         debug_image = draw_info(debug_image, fps, mode, number)
 
         # 显示出来 #############################################################
@@ -598,7 +610,7 @@ def draw_info_text(image, brect, handedness, hand_sign_text,
     return image
 
 
-def draw_point_history(image, point_history):
+def draw_pointer(image, point_history):
     #打印历史点
     for index, point in enumerate(point_history):
         if point[0] != 0 and point[1] != 0:
