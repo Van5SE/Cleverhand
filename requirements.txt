@@ -1,0 +1,6 @@
+opencv_python==4.5.1.48
+pynput==1.7.3
+tensorflow==2.4.1
+mediapipe==0.8.2
+numpy==1.19.3
+wxPython==4.1.1
