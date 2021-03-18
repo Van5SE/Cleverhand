@@ -10,7 +10,7 @@ class PointHistoryClassifier(object):
         model_path='model/point_history_classifier/point_history_classifier.tflite',
         score_th=0.5,
         invalid_value=0,
-        num_threads=1,
+        num_threads=4,
     ):
         self.interpreter = tf.lite.Interpreter(model_path=model_path,
                                                num_threads=num_threads)

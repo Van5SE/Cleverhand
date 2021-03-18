@@ -112,14 +112,22 @@ def main():
     pointer_history = deque(maxlen=16) # 食指尖坐标历史记录
     finger_gesture_history = deque(maxlen=16) # 手指手势历史记录
     middle_point_history = deque(maxlen=8) #食指大拇指中间点坐标历史记录
-    middle_line_history =  deque(maxlen=8) #食指大拇指中间线长度历史记录
     middle_hukou_history = deque(maxlen=8) #中间线与虎口长度的比值的历史记录
+
+    def append_ohter_deque(this_deque):
+    # 将没用到的数据结构添加一位空位
+        if(pointer_history!=this_deque):
+            pointer_history.append([0,0])
+        if(middle_point_history!=this_deque):
+            middle_point_history.appendleft([0,0])
+        if(middle_hukou_history!=this_deque):
+            middle_hukou_history.appendleft(inf_middle_hukou)
+
 
     for i in range(8):
         pointer_history.append([0,0])
         pointer_history.append([0,0])
         middle_point_history.append([0.0])
-        # middle_line_history.append(9999)
         middle_hukou_history.append(inf_middle_hukou)
 
 
@@ -154,6 +162,9 @@ def main():
         if results.multi_hand_landmarks is not None:
             for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
                                                   results.multi_handedness):
+
+                print("") #换行
+                print(len(results.multi_handedness)) # 可以获取到现在有几只手
                 # 计算手的外接矩形
                 brect = calc_bounding_rect(debug_image, hand_landmarks)
                 # 计算手的关键点
@@ -172,19 +183,18 @@ def main():
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
                 
                 
-                if hand_sign_id == 0:
+                if hand_sign_id == 0 and len(results.multi_handedness)==2 : # 张开手掌的手势
                     pointer_history.append(landmark_list[8])  # 保存食指坐标
-                    middle_point_history.appendleft([0,0])
-                    # middle_line_history.appendleft(9999)
-                    middle_hukou_history.appendleft(inf_middle_hukou)
+                    append_ohter_deque(pointer_history)
+                    print(pointer_history)
+                    print(middle_point_history)
+                    print(middle_hukou_history)
 
                     debug_image = draw_pointer(debug_image, pointer_history)
 
                 elif hand_sign_id == 2:  # 如果是伸出食指的手势
                     pointer_history.append(landmark_list[8])  # 保存食指坐标
-                    middle_point_history.appendleft([0,0])
-                    # middle_line_history.appendleft(9999)
-                    middle_hukou_history.appendleft(inf_middle_hukou)
+                    append_ohter_deque(pointer_history)
 
                     debug_image = draw_pointer(debug_image, pointer_history)
 
@@ -195,10 +205,8 @@ def main():
 
                     pointer_history.append([0,0])
                     middle_point_history.appendleft(middle_point)
-                    # middle_line_history.appendleft(middle_line)
                     middle_hukou_history.appendleft(middle_line/hukou_line)
 
-                    # print(middle_hukou_history)
                     debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],middle_point) #画出中间线
                     func_mouse(debug_image,middle_point_history,middle_hukou_history)
 
@@ -209,17 +217,14 @@ def main():
 
                     pointer_history.append([0,0])
                     middle_point_history.appendleft(middle_point)
-                    # middle_line_history.appendleft(middle_line)
                     middle_hukou_history.appendleft(middle_line/hukou_line)
 
-                    # print(middle_hukou_history)
                     debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],middle_point) #画出中间线
                     func_grab(debug_image,middle_point_history,middle_hukou_history)
 
                 else:
                     pointer_history.append([0, 0])
                     middle_point_history.appendleft([0,0])
-                    # middle_line_history.appendleft(9999)
                     middle_hukou_history.appendleft(inf_middle_hukou)
 
                 # 手指手势分类
@@ -255,6 +260,8 @@ def main():
 
     cap.release()
     cv.destroyAllWindows()
+
+
 
 def select_mode(key, mode):
     # 通过输入控制程序
@@ -293,6 +300,7 @@ def calc_landmark_list(image, landmarks):
     landmark_point = []
     # 关键点
     for _, landmark in enumerate(landmarks.landmark):
+        # 由归一化坐标扩展到真实坐标
         landmark_x = min(int(landmark.x * image_width), image_width - 1)
         landmark_y = min(int(landmark.y * image_height), image_height - 1)
         # landmark_z = landmark.z
@@ -325,6 +333,7 @@ def calc_hukou_line(landmark2,landmark5):
     )
     return hukou_line
 
+
 def pre_process_landmark(landmark_list):
     temp_landmark_list = copy.deepcopy(landmark_list)
 
@@ -351,7 +360,6 @@ def pre_process_landmark(landmark_list):
 
     return temp_landmark_list
 
-
 def pre_process_point_history(image, point_history):
     image_width, image_height = image.shape[1], image.shape[0]
 
@@ -362,7 +370,7 @@ def pre_process_point_history(image, point_history):
     for index, point in enumerate(temp_point_history):
         if index == 0:
             base_x, base_y = point[0], point[1]
-
+    # 归一化处理
         temp_point_history[index][0] = (temp_point_history[index][0] -
                                         base_x) / image_width
         temp_point_history[index][1] = (temp_point_history[index][1] -
