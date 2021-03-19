@@ -113,15 +113,18 @@ def main():
     finger_gesture_history = deque(maxlen=16) # 手指手势历史记录
     middle_point_history = deque(maxlen=8) #食指大拇指中间点坐标历史记录
     middle_hukou_history = deque(maxlen=8) #中间线与虎口长度的比值的历史记录
+    mouse_point_history = deque(maxlen=8) #指示鼠标、抓取等关键点的坐标点位置
 
-    def append_ohter_deque(this_deque):
+    def append_ohter_deque(deque_1=None,deque_2=None,deque_3=None):
     # 将没用到的数据结构添加一位空位
-        if(pointer_history!=this_deque):
+        if(pointer_history!=deque_1 and pointer_history!=deque_2 and pointer_history!=deque_3):
             pointer_history.append([0,0])
-        if(middle_point_history!=this_deque):
+        if(middle_point_history!=deque_1 and middle_point_history!=deque_2 and middle_point_history!=deque_3):
             middle_point_history.appendleft([0,0])
-        if(middle_hukou_history!=this_deque):
+        if(middle_hukou_history!=deque_1 and middle_hukou_history!=deque_2 and middle_hukou_history!=deque_3):
             middle_hukou_history.appendleft(inf_middle_hukou)
+        if(mouse_point_history!=deque_1 and mouse_point_history!=deque_2 and mouse_point_history!=deque_3):
+            mouse_point_history.appendleft([0,0])
 
 
     for i in range(8):
@@ -129,6 +132,7 @@ def main():
         pointer_history.append([0,0])
         middle_point_history.append([0.0])
         middle_hukou_history.append(inf_middle_hukou)
+        mouse_point_history.append([0.0])
 
 
     #  ########################################################################
@@ -163,8 +167,6 @@ def main():
             for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
                                                   results.multi_handedness):
 
-                print("") #换行
-                print(len(results.multi_handedness)) # 可以获取到现在有几只手
                 # 计算手的外接矩形
                 brect = calc_bounding_rect(debug_image, hand_landmarks)
                 # 计算手的关键点
@@ -186,9 +188,6 @@ def main():
                 if hand_sign_id == 0 and len(results.multi_handedness)==2 : # 张开手掌的手势
                     pointer_history.append(landmark_list[8])  # 保存食指坐标
                     append_ohter_deque(pointer_history)
-                    print(pointer_history)
-                    print(middle_point_history)
-                    print(middle_hukou_history)
 
                     debug_image = draw_pointer(debug_image, pointer_history)
 
@@ -203,29 +202,29 @@ def main():
                     middle_line=calc_middle_line(landmark_list[8],landmark_list[4]) #计算中间线长度
                     hukou_line=calc_hukou_line(landmark_list[2],landmark_list[5]) #计算虎口长度
 
-                    pointer_history.append([0,0])
                     middle_point_history.appendleft(middle_point)
                     middle_hukou_history.appendleft(middle_line/hukou_line)
+                    mouse_point_history.appendleft(landmark_list[12])
+                    append_ohter_deque(middle_point_history,middle_hukou_history,mouse_point_history) #记录数据
 
-                    debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],middle_point) #画出中间线
-                    func_mouse(debug_image,middle_point_history,middle_hukou_history)
+                    debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],mouse_point_history[0]) #画出中间线
+                    func_mouse(debug_image,mouse_point_history,middle_hukou_history)
 
                 elif hand_sign_id == 4:   # 如果是抓住的手势
                     middle_point=calc_middle_point(landmark_list[8],landmark_list[4]) #计算中间点
                     middle_line=calc_middle_line(landmark_list[8],landmark_list[4]) #计算中间线长度
                     hukou_line=calc_hukou_line(landmark_list[2],landmark_list[5]) #计算虎口长度
 
-                    pointer_history.append([0,0])
                     middle_point_history.appendleft(middle_point)
                     middle_hukou_history.appendleft(middle_line/hukou_line)
+                    mouse_point_history.appendleft(middle_point) #暂时还是用两连线中点作为鼠标位置
+                    append_ohter_deque(middle_point_history,middle_hukou_history,mouse_point_history) #记录数据
 
-                    debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],middle_point) #画出中间线
-                    func_grab(debug_image,middle_point_history,middle_hukou_history)
+                    debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],mouse_point_history[0]) #画出中间线
+                    func_grab(debug_image,mouse_point_history,middle_hukou_history)
 
                 else:
-                    pointer_history.append([0, 0])
-                    middle_point_history.appendleft([0,0])
-                    middle_hukou_history.appendleft(inf_middle_hukou)
+                    append_ohter_deque()
 
                 # 手指手势分类
                 finger_gesture_id = 6
@@ -256,7 +255,7 @@ def main():
         debug_image = draw_info(debug_image, fps, mode, number)
 
         # 显示出来 #############################################################
-        cv.imshow('Hand Gesture Recognition', debug_image)
+        cv.imshow('CleverHand', debug_image)
 
     cap.release()
     cv.destroyAllWindows()
@@ -645,18 +644,18 @@ def draw_info(image, fps, mode, number):
                        cv.LINE_AA)
     return image
 
-def draw_mouse(image,index_point,thumb_point,middle_point):
-# 划出一条连接食指指尖和大拇指指尖的线，并在中点画出点来
-    cv.line(image, tuple(index_point), tuple(thumb_point),
+def draw_mouse(image,point_1,point_2,middle_point):
+# 划出一条连接两个坐标点的线，并画出其中点
+    cv.line(image, tuple(point_1), tuple(point_2),
                 (0,245,255), 6)
-    cv.line(image, tuple(index_point), tuple(thumb_point),
+    cv.line(image, tuple(point_1), tuple(point_2),
                 (0,229,238), 2)
-    cv.circle(image, (middle_point[0], middle_point[1]), 5, (0,229,238),
+    cv.circle(image, (middle_point[0], middle_point[1]), 10, (0,229,238),
                       -1)
-    cv.circle(image, (middle_point[0], middle_point[1]), 5, (0,245,255), 1)
+    cv.circle(image, (middle_point[0], middle_point[1]), 10, (0,245,255), 1)
     return image
 
-def func_mouse(image,middle_point_history,middle_hukou_history):
+def func_mouse(image,mouse_point_history,middle_hukou_history):
 #执行鼠标功能 待完善
     args = get_args()
 
@@ -697,14 +696,14 @@ def func_mouse(image,middle_point_history,middle_hukou_history):
             mouse.release(Button.right)
             right_button_flag=False
             print("松开Right")
-        move_distance_x = (middle_point_history[0][0]-middle_point_history[1][0]) #防颤抖
-        move_distance_y = (middle_point_history[0][1]-middle_point_history[1][1])
+        move_distance_x = (mouse_point_history[0][0]-mouse_point_history[1][0]) #防颤抖
+        move_distance_y = (mouse_point_history[0][1]-mouse_point_history[1][1])
         if abs(move_distance_x)<3 and abs(move_distance_y)<3:
             pass
         else :
-            mx=middle_point_history[0][0]
-            my=middle_point_history[0][1]
-            mouseLocx=int((mx-0.12*image_width)/(0.6*image_width)*screen_width) #通过按比例缩小使得鼠标操控周围
+            mx=mouse_point_history[0][0]
+            my=mouse_point_history[0][1]
+            mouseLocx=int((mx-0.18*image_width)/(0.6*image_width)*screen_width) #通过按比例缩小使得鼠标操控周围
             mouseLocy=int((my-0.25*image_height)/(0.5*image_height)*screen_height)
             
             if mouseLocx<0:
@@ -726,7 +725,7 @@ def func_mouse(image,middle_point_history,middle_hukou_history):
             while mouse.position!=mouseLoc:
                 pass
 
-def func_grab(image,middle_point_history,middle_hukou_history):
+def func_grab(image,mouse_point_history,middle_hukou_history):
 #执行抓取功能 待完善
     args = get_args()
 
@@ -759,14 +758,14 @@ def func_grab(image,middle_point_history,middle_hukou_history):
             print("按下Left")
         else:
             print("保持Left按下")
-        move_distance_x = (middle_point_history[0][0]-middle_point_history[1][0]) #防颤抖
-        move_distance_y = (middle_point_history[0][1]-middle_point_history[1][1])
+        move_distance_x = (mouse_point_history[0][0]-mouse_point_history[1][0]) #防颤抖
+        move_distance_y = (mouse_point_history[0][1]-mouse_point_history[1][1])
         if abs(move_distance_x)<3 and abs(move_distance_y)<3:
             pass
         else :
-            mx=middle_point_history[0][0]
-            my=middle_point_history[0][1]
-            mouseLocx=int((mx-0.12*image_width)/(0.6*image_width)*screen_width) #通过按比例缩小使得鼠标操控周围
+            mx=mouse_point_history[0][0]
+            my=mouse_point_history[0][1]
+            mouseLocx=int((mx-0.05*image_width)/(0.6*image_width)*screen_width) #通过按比例缩小使得鼠标操控周围
             mouseLocy=int((my-0.25*image_height)/(0.5*image_height)*screen_height)
             
             if mouseLocx<0:
@@ -794,13 +793,13 @@ def func_grab(image,middle_point_history,middle_hukou_history):
             left_button_flag=False
         else:
             print("保持Left松开")
-        move_distance_x = (middle_point_history[0][0]-middle_point_history[1][0]) #防颤抖
-        move_distance_y = (middle_point_history[0][1]-middle_point_history[1][1])
+        move_distance_x = (mouse_point_history[0][0]-mouse_point_history[1][0]) #防颤抖
+        move_distance_y = (mouse_point_history[0][1]-mouse_point_history[1][1])
         if abs(move_distance_x)<3 and abs(move_distance_y)<3:
             pass
         else :
-            mx=middle_point_history[0][0]
-            my=middle_point_history[0][1]
+            mx=mouse_point_history[0][0]
+            my=mouse_point_history[0][1]
             mouseLocx=int((mx-0.12*image_width)/(0.6*image_width)*screen_width) #通过按比例缩小使得鼠标操控周围
             mouseLocy=int((my-0.25*image_height)/(0.5*image_height)*screen_height)
             
