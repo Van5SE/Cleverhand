@@ -41,6 +41,7 @@ def get_args():
     parser.add_argument("--inf_middle_hukou",type=float,default=9) #设定最大比值为9
     parser.add_argument("--open_middle_hukou",type=float,default=2) #大于2一般会被判定为张开手的状态
     parser.add_argument("--close_middle_hukou",type=float,default=0.5) #小于0.5认为食指和大拇指并上了
+    parser.add_argument("--inf_LRF_line",type=int,default=999) #设定左右手的最大间距为999
 
     app=wx.App(False)
     (sw,sh)=wx.GetDisplaySize()
@@ -65,6 +66,7 @@ def main():
     cap_height = args.cheight
 
     inf_middle_hukou = args.inf_middle_hukou
+    inf_LRF_line=args.inf_LRF_line
 
     use_static_image_mode = args.use_static_image_mode
     min_detection_confidence = args.min_detection_confidence
@@ -114,6 +116,9 @@ def main():
     middle_point_history = deque(maxlen=8) #食指大拇指中间点坐标历史记录
     middle_hukou_history = deque(maxlen=8) #中间线与虎口长度的比值的历史记录
     mouse_point_history = deque(maxlen=8) #指示鼠标、抓取等关键点的坐标点位置
+    LRF_line_history = deque(maxlen=8) #存储左右手指间距离的历史记录
+    LRF_point_history = deque(maxlen=2) #存储左右手指尖坐标的历史记录
+
 
     def append_ohter_deque(deque_1=None,deque_2=None,deque_3=None):
     # 将没用到的数据结构添加一位空位
@@ -125,6 +130,11 @@ def main():
             middle_hukou_history.appendleft(inf_middle_hukou)
         if(mouse_point_history!=deque_1 and mouse_point_history!=deque_2 and mouse_point_history!=deque_3):
             mouse_point_history.appendleft([0,0])
+        if(LRF_line_history!=deque_1 and LRF_line_history!=deque_2 and LRF_line_history!=deque_3):
+            LRF_line_history.appendleft(inf_LRF_line)
+        if(LRF_point_history!=deque_1 and LRF_point_history!=deque_2 and LRF_point_history!=deque_3):
+            LRF_point_history.appendleft([0.0])
+        
 
 
     for i in range(8):
@@ -133,6 +143,8 @@ def main():
         middle_point_history.append([0.0])
         middle_hukou_history.append(inf_middle_hukou)
         mouse_point_history.append([0.0])
+        LRF_line_history.append(0)
+        LRF_point_history.append([0.0])
 
 
     #  ########################################################################
@@ -187,7 +199,16 @@ def main():
                 
                 if hand_sign_id == 0 and len(results.multi_handedness)==2 : # 张开手掌的手势
                     pointer_history.append(landmark_list[8])  # 保存食指坐标
-                    append_ohter_deque(pointer_history)
+                    LRF_point_history.appendleft(landmark_list[8])
+                    if(LRF_point_history[1]!=[0.0]):
+                        LRF_line=calc_middle_line(LRF_point_history[0],LRF_point_history[1])
+                        LRF_line_history.appendleft(LRF_line) #计算得到LRF_line
+                        print(LRF_line)
+                        debug_image=draw_mouse(debug_image,LRF_point_history[0],LRF_point_history[1])
+                    print(LRF_point_history)
+                    print(LRF_line_history)
+                    
+                    append_ohter_deque(pointer_history,LRF_line_history,LRF_point_history)
 
                     debug_image = draw_pointer(debug_image, pointer_history)
 
@@ -644,15 +665,18 @@ def draw_info(image, fps, mode, number):
                        cv.LINE_AA)
     return image
 
-def draw_mouse(image,point_1,point_2,middle_point):
+def draw_mouse(image,point_1,point_2,middle_point=None):
 # 划出一条连接两个坐标点的线，并画出其中点
     cv.line(image, tuple(point_1), tuple(point_2),
                 (0,245,255), 6)
     cv.line(image, tuple(point_1), tuple(point_2),
                 (0,229,238), 2)
-    cv.circle(image, (middle_point[0], middle_point[1]), 10, (0,229,238),
-                      -1)
-    cv.circle(image, (middle_point[0], middle_point[1]), 10, (0,245,255), 1)
+    if(middle_point==None):
+        pass
+    else:
+        cv.circle(image, (middle_point[0], middle_point[1]), 10, (0,229,238),
+                        -1)
+        cv.circle(image, (middle_point[0], middle_point[1]), 10, (0,245,255), 1)
     return image
 
 def func_mouse(image,mouse_point_history,middle_hukou_history):
