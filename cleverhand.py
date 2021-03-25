@@ -17,6 +17,7 @@ from pynput.mouse import Button, Controller
 from utils import CvFpsCalc
 from model import KeyPointClassifier
 from model import PointHistoryClassifier
+from firstLRF import firstLRF #导入必要的类
 
 
 
@@ -118,10 +119,12 @@ def main():
     mouse_point_history = deque(maxlen=8) #指示鼠标、抓取等关键点的坐标点位置
     LRF_line_history = deque(maxlen=8) #存储左右手指间距离的历史记录
     LRF_point_history = deque(maxlen=2) #存储左右手指尖坐标的历史记录
+    firstLRFdata = firstLRF() #存储下第一个左右手指数据  TODO
 
 
-    def append_ohter_deque(deque_1=None,deque_2=None,deque_3=None):
+    def append_ohter_deque(deque_1=None,deque_2=None,deque_3=None,firstLRF_1=None):
     # 将没用到的数据结构添加一位空位
+        nonlocal firstLRFdata
         if(pointer_history!=deque_1 and pointer_history!=deque_2 and pointer_history!=deque_3):
             pointer_history.append([0,0])
         if(middle_point_history!=deque_1 and middle_point_history!=deque_2 and middle_point_history!=deque_3):
@@ -133,18 +136,20 @@ def main():
         if(LRF_line_history!=deque_1 and LRF_line_history!=deque_2 and LRF_line_history!=deque_3):
             LRF_line_history.appendleft(inf_LRF_line)
         if(LRF_point_history!=deque_1 and LRF_point_history!=deque_2 and LRF_point_history!=deque_3):
-            LRF_point_history.appendleft([0.0])
+            LRF_point_history.appendleft([0,0])
+        if(firstLRFdata!=firstLRF_1 and firstLRFdata.leftF!=None): #TODO 
+            firstLRFdata=firstLRF()
         
 
 
     for i in range(8):
         pointer_history.append([0,0])
         pointer_history.append([0,0])
-        middle_point_history.append([0.0])
+        middle_point_history.append([0,0])
         middle_hukou_history.append(inf_middle_hukou)
-        mouse_point_history.append([0.0])
+        mouse_point_history.append([0,0])
         LRF_line_history.append(0)
-        LRF_point_history.append([0.0])
+        LRF_point_history.append([0,0])
 
 
     #  ########################################################################
@@ -196,21 +201,35 @@ def main():
                 # 手势分类
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
                 
-                
                 if hand_sign_id == 0 and len(results.multi_handedness)==2 : # 张开手掌的手势
-                    pointer_history.append(landmark_list[8])  # 保存食指坐标
-                    LRF_point_history.appendleft(landmark_list[8])
-                    if(LRF_point_history[1]!=[0.0]):
-                        LRF_line=calc_middle_line(LRF_point_history[0],LRF_point_history[1])
-                        LRF_line_history.appendleft(LRF_line) #计算得到LRF_line
-                        print(LRF_line)
-                        debug_image=draw_mouse(debug_image,LRF_point_history[0],LRF_point_history[1])
-                    print(LRF_point_history)
-                    print(LRF_line_history)
                     
-                    append_ohter_deque(pointer_history,LRF_line_history,LRF_point_history)
+                    if(handedness.classification[0].label[0:]=="Right"):
+                        LRF_point_history[1]=landmark_list[8]
+                    elif(handedness.classification[0].label[0:]=="Left"):
+                        LRF_point_history[0]=landmark_list[8] # 0存储左手位置 1存储右手位置
+                    
+                    if(LRF_point_history[1]!=[0,0] and LRF_point_history[0]!=[0,0]): #LRF=Left Right Finger
+                        LRF_line=int(calc_middle_line(LRF_point_history[0],LRF_point_history[1])/cap_width*500) # 将长度归一化
+                        LRF_line_history.appendleft(LRF_line) #计算得到LRF_line 这个history数组可能不需要
+                        #print(LRF_line)
+                        debug_image=draw_mouse(debug_image,LRF_point_history[0],LRF_point_history[1])
 
-                    debug_image = draw_pointer(debug_image, pointer_history)
+                        #print(LRF_point_history[0],LRF_point_history[1])
+                        LRF_angle=calc_angle(LRF_point_history[0],LRF_point_history[1]) #计算得到LRFangle
+                        #print(LRFangle)
+
+                        if(firstLRFdata.leftF==None and max(LRF_point_history)!=inf_LRF_line): #TODO
+                            firstLRFdata=firstLRF(LRF_point_history[0],LRF_point_history[1],LRF_line,LRF_angle)
+                        elif (max(LRF_point_history)!=inf_LRF_line): #判断不要快速跳动
+                            switch_two_open(firstLRFdata,LRF_line,LRF_angle)
+
+                    #print(firstLRFdata.leftF)
+                    #print(LRF_point_history)
+                    #print(LRF_line_history)
+                    
+                    append_ohter_deque(pointer_history,LRF_line_history,LRF_point_history,firstLRF_1=firstLRFdata)
+
+                    #debug_image = draw_pointer(debug_image, pointer_history)
 
                 elif hand_sign_id == 2:  # 如果是伸出食指的手势
                     pointer_history.append(landmark_list[8])  # 保存食指坐标
@@ -353,6 +372,26 @@ def calc_hukou_line(landmark2,landmark5):
     )
     return hukou_line
 
+def calc_angle(lp1, rp1,lp2=[0,0],rp2=[1,0]): #lp1 = leftpoint1 rp1 = rightpoint1
+    #print("'''''''''''")
+    dx1 = rp1[0] - lp1[0]
+    dy1 = rp1[1] - lp1[1]
+    dx2 = rp2[0] - lp2[0]
+    dy2 = rp2[1] - lp2[1]
+    angle1 = np.math.atan2(dy1, dx1)
+    angle1 = int(angle1 * 180/np.math.pi)
+    #print(angle1)
+    angle2 = np.math.atan2(dy2, dx2)
+    angle2 = int(angle2 * 180/np.math.pi)
+    #print(angle2)
+    if angle1*angle2 >= 0:
+        included_angle = angle1-angle2
+    else:
+        included_angle = abs(angle1) + abs(angle2)
+        if included_angle > 180:
+            included_angle = 360 - included_angle
+    #print("''''''''''''''''''''''''")
+    return included_angle
 
 def pre_process_landmark(landmark_list):
     temp_landmark_list = copy.deepcopy(landmark_list)
@@ -680,7 +719,7 @@ def draw_mouse(image,point_1,point_2,middle_point=None):
     return image
 
 def func_mouse(image,mouse_point_history,middle_hukou_history):
-#执行鼠标功能 待完善
+#执行鼠标功能 TODO
     args = get_args()
 
     inf_middle_hukou = args.inf_middle_hukou
@@ -750,7 +789,7 @@ def func_mouse(image,mouse_point_history,middle_hukou_history):
                 pass
 
 def func_grab(image,mouse_point_history,middle_hukou_history):
-#执行抓取功能 待完善
+#执行抓取功能 TODO
     args = get_args()
 
     inf_middle_hukou = args.inf_middle_hukou
@@ -846,6 +885,24 @@ def func_grab(image,mouse_point_history,middle_hukou_history):
             while mouse.position!=mouseLoc:
                 pass
 
+def switch_two_open(firstLRFdata,LRF_line,LRF_angle):
+#对两个张开手势的运动结果的功能切换
+    LRF_line_sub=LRF_line-firstLRFdata.LRF_line
+    LRF_angle_sub=LRF_angle-firstLRFdata.LRF_angle
+    print(LRF_line,firstLRFdata.LRF_line,LRF_angle,firstLRFdata.LRF_angle)
+    print(LRF_line_sub,LRF_angle_sub)
+    if(abs(LRF_line_sub)>0.3*firstLRFdata.LRF_line):
+        if(LRF_line_sub>0):
+            print("放大：",abs(LRF_line_sub)/firstLRFdata.LRF_line*0.8)
+        elif(LRF_line_sub<0):
+            print("缩小：",abs(LRF_line_sub)/firstLRFdata.LRF_line*1.2)
+    elif(abs(LRF_angle_sub)>10): 
+        if(LRF_angle_sub>0):
+            print("顺时针旋转",abs(LRF_angle_sub*2)-20,"度")
+        elif(LRF_angle_sub<0):
+            print("逆时针旋转",abs(LRF_angle_sub*2)-20,"度")
+    else:
+        print("不动")
 
 if __name__ == '__main__':
     main()
