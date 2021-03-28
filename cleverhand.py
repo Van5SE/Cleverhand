@@ -84,7 +84,7 @@ def main():
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
         static_image_mode=use_static_image_mode,
-        max_num_hands=2,
+        max_num_hands=1,
         min_detection_confidence=min_detection_confidence,
         min_tracking_confidence=min_tracking_confidence,
     )
@@ -231,13 +231,8 @@ def main():
 
                     #debug_image = draw_pointer(debug_image, pointer_history)
 
-                elif hand_sign_id == 2:  # 如果是伸出食指的手势
-                    pointer_history.append(landmark_list[8])  # 保存食指坐标
-                    append_ohter_deque(pointer_history)
 
-                    debug_image = draw_pointer(debug_image, pointer_history)
-
-                elif hand_sign_id == 3:   # 如果是鼠标的手势
+                elif hand_sign_id == 1:   # 如果是鼠标的手势
                     middle_point=calc_middle_point(landmark_list[8],landmark_list[4]) #计算中间点
                     middle_line=calc_middle_line(landmark_list[8],landmark_list[4]) #计算中间线长度
                     hukou_line=calc_hukou_line(landmark_list[2],landmark_list[5]) #计算虎口长度
@@ -250,7 +245,7 @@ def main():
                     debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],mouse_point_history[0]) #画出中间线
                     func_mouse(debug_image,mouse_point_history,middle_hukou_history)
 
-                elif hand_sign_id == 4:   # 如果是抓住的手势
+                elif hand_sign_id == 2:   # 如果是抓住的手势
                     middle_point=calc_middle_point(landmark_list[8],landmark_list[4]) #计算中间点
                     middle_line=calc_middle_line(landmark_list[8],landmark_list[4]) #计算中间线长度
                     hukou_line=calc_hukou_line(landmark_list[2],landmark_list[5]) #计算虎口长度
@@ -262,6 +257,12 @@ def main():
 
                     debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],mouse_point_history[0]) #画出中间线
                     func_grab(debug_image,mouse_point_history,middle_hukou_history)
+
+                elif hand_sign_id == 4:  # 如果是1的手势
+                    pointer_history.append(landmark_list[8])  # 保存食指坐标
+                    append_ohter_deque(pointer_history)
+
+                    debug_image = draw_pointer(debug_image, pointer_history)
 
                 else:
                     append_ohter_deque()
