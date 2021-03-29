@@ -25,7 +25,7 @@ from firstLRF import firstLRF #导入必要的类
 def get_args():
     parser = argparse.ArgumentParser()
     #没有后置 前置摄像头为0 有后置 前置摄像头为1
-    parser.add_argument("--device", type=int, default=1)
+    parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--cwidth", help='cap width', type=int, default=960)
     parser.add_argument("--cheight", help='cap height', type=int, default=540)
 
