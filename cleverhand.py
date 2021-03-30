@@ -17,7 +17,7 @@ from pynput.mouse import Button, Controller
 from utils import CvFpsCalc
 from model import KeyPointClassifier
 from model import PointHistoryClassifier
-from firstLRF import firstLRF #导入必要的类
+from utils import firstLRF #导入必要的类
 
 
 
@@ -25,7 +25,7 @@ from firstLRF import firstLRF #导入必要的类
 def get_args():
     parser = argparse.ArgumentParser()
     #没有后置 前置摄像头为0 有后置 前置摄像头为1
-    parser.add_argument("--device", type=int, default=1)
+    parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--cwidth", help='cap width', type=int, default=960)
     parser.add_argument("--cheight", help='cap height', type=int, default=540)
 
@@ -84,7 +84,7 @@ def main():
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
         static_image_mode=use_static_image_mode,
-        max_num_hands=2,
+        max_num_hands=1,
         min_detection_confidence=min_detection_confidence,
         min_tracking_confidence=min_tracking_confidence,
     )
@@ -119,7 +119,7 @@ def main():
     mouse_point_history = deque(maxlen=8) #指示鼠标、抓取等关键点的坐标点位置
     LRF_line_history = deque(maxlen=8) #存储左右手指间距离的历史记录
     LRF_point_history = deque(maxlen=2) #存储左右手指尖坐标的历史记录
-    firstLRFdata = firstLRF() #存储下第一个左右手指数据  TODO
+    firstLRFdata = firstLRF() #存储下第一个左右手指数据
 
 
     def append_ohter_deque(deque_1=None,deque_2=None,deque_3=None,firstLRF_1=None):
@@ -444,16 +444,16 @@ def pre_process_point_history(image, point_history):
 
 
 def logging_csv(number, mode, landmark_list, point_history_list):
-# 加载csv
+# 将手掌坐标计入csv中
     if mode == 0:
         pass
     if mode == 1 and (0 <= number <= 9):
-        csv_path = 'model/keypoint_classifier/keypoint.csv'
+        csv_path = 'model/keypoint_classifier/keypoints/keypoint'+str(number)+'.csv'
         with open(csv_path, 'a', newline="") as f:
             writer = csv.writer(f)
             writer.writerow([number, *landmark_list])
     if mode == 2 and (0 <= number <= 9):
-        csv_path = 'model/point_history_classifier/point_history.csv'
+        csv_path = 'model/point_history_classifier/points_historys/point_history'+str(number)+'.csv'
         with open(csv_path, 'a', newline="") as f:
             writer = csv.writer(f)
             writer.writerow([number, *point_history_list])
