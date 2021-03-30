@@ -201,6 +201,7 @@ def main():
                 # 手势分类
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
                 
+                '''
                 if hand_sign_id == 0 and len(results.multi_handedness)==2 : # 张开手掌的手势
                     
                     if(handedness.classification[0].label[0:]=="Right"):
@@ -266,6 +267,7 @@ def main():
 
                 else:
                     append_ohter_deque()
+                '''
 
                 # 手指手势分类
                 finger_gesture_id = 6
