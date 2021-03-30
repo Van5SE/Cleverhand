@@ -25,7 +25,7 @@ from firstLRF import firstLRF #导入必要的类
 def get_args():
     parser = argparse.ArgumentParser()
     #没有后置 前置摄像头为0 有后置 前置摄像头为1
-    parser.add_argument("--device", type=int, default=0)
+    parser.add_argument("--device", type=int, default=1)
     parser.add_argument("--cwidth", help='cap width', type=int, default=960)
     parser.add_argument("--cheight", help='cap height', type=int, default=540)
 
@@ -84,7 +84,7 @@ def main():
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
         static_image_mode=use_static_image_mode,
-        max_num_hands=1,
+        max_num_hands=2,
         min_detection_confidence=min_detection_confidence,
         min_tracking_confidence=min_tracking_confidence,
     )
