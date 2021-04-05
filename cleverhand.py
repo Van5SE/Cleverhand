@@ -22,6 +22,8 @@ from utils import firstLRF #导入必要的类
 
 
 
+                
+                
 def get_args():
     parser = argparse.ArgumentParser()
     #没有后置 前置摄像头为0 有后置 前置摄像头为1
@@ -84,7 +86,7 @@ def main():
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
         static_image_mode=use_static_image_mode,
-        max_num_hands=1,
+        max_num_hands=2,
         min_detection_confidence=min_detection_confidence,
         min_tracking_confidence=min_tracking_confidence,
     )
@@ -200,8 +202,6 @@ def main():
 
                 # 手势分类
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
-                
-                
                 if hand_sign_id == 0 and len(results.multi_handedness)==2 : # 张开手掌的手势
                     
                     if(handedness.classification[0].label[0:]=="Right"):
