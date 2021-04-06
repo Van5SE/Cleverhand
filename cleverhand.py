@@ -28,8 +28,8 @@ def get_args():
     parser = argparse.ArgumentParser()
     #没有后置 前置摄像头为0 有后置 前置摄像头为1
     parser.add_argument("--device", type=int, default=0)
-    parser.add_argument("--cwidth", help='cap width', type=int, default=960)
-    parser.add_argument("--cheight", help='cap height', type=int, default=540)
+    parser.add_argument("--cwidth", help='cap width', type=int, default=1280)
+    parser.add_argument("--cheight", help='cap height', type=int, default=720)
 
     parser.add_argument('--use_static_image_mode', action='store_true')
     parser.add_argument("--min_detection_confidence",
@@ -288,8 +288,7 @@ def main():
 
                     debug_image = draw_pointer(debug_image, pointer_history)
 
-                else:
-                    
+                else:  
                     append_other_deque()
 
                 # 手指手势分类
@@ -314,9 +313,10 @@ def main():
                     keypoint_classifier_labels[hand_sign_id],
                     point_history_classifier_labels[most_common_fg_id],
                 )
-
+            debug_image = draw_image(debug_image)
         else:
             append_other_deque()
+            debug_image = draw_image(debug_image)
             pass
  
         debug_image = draw_info(debug_image, func_string,func_work_status_flag, logMode, logNumber)
@@ -717,10 +717,13 @@ def draw_info_text(image, brect, handedness, hand_sign_text,finger_gesture_text)
     cv.putText(image, info_text, (brect[0] + 5, brect[1] - 4),
                cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
 
+    image_width, image_height = image.shape[1], image.shape[0]
+    #image=image[int(0.02*image_height):int(0.98*image_height),int(0.02*image_width):int(0.98*image_width)]
+
     if finger_gesture_text != "":
-        cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
+        cv.putText(image, "Finger Gesture:" + finger_gesture_text, (int(0.02*image_width)+10, int(0.02*image_height)+60),
                    cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 4, cv.LINE_AA)
-        cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
+        cv.putText(image, "Finger Gesture:" + finger_gesture_text, (int(0.02*image_width)+10, int(0.02*image_height)+60),
                    cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2,
                    cv.LINE_AA)
 
@@ -736,13 +739,17 @@ def draw_pointer(image, point_history):
     return image
 
 def draw_info(image, func_string,func_work_status_flag, logMode, number):
-#画面左上方打印fps等信息
+#画面左上方打印当前动作等信息
     if(func_work_status_flag):
         cv.putText(image, "Current action:" + func_string, (10, 30), cv.FONT_HERSHEY_SIMPLEX,
-                1.0, (240, 240, 240), 1, cv.LINE_AA)
+                1.0, (0,0,0), 4, cv.LINE_AA)
+        cv.putText(image, "Current action:" + func_string, (10, 30), cv.FONT_HERSHEY_SIMPLEX,
+                1.0, (255,255,255), 2, cv.LINE_AA)
     else:
         cv.putText(image, "Last action:" + func_string, (10, 30), cv.FONT_HERSHEY_SIMPLEX,
-                1.0, (255, 255, 255), 1, cv.LINE_AA)
+                1.0, (0,0,0), 4, cv.LINE_AA)
+        cv.putText(image, "Last action:" + func_string, (10, 30), cv.FONT_HERSHEY_SIMPLEX,
+                1.0, (255, 255, 255), 2, cv.LINE_AA)
 
     mode_string = ['Logging Key Point', 'Logging Point History']
     if 1 <= logMode <= 2:
@@ -753,6 +760,11 @@ def draw_info(image, func_string,func_work_status_flag, logMode, number):
             cv.putText(image, "NUM:" + str(number), (10, 110),
                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
                        cv.LINE_AA)
+    return image
+
+def draw_image(image):
+    image_width, image_height = image.shape[1], image.shape[0]
+    image=image[int(0.02*image_height):int(0.98*image_height),int(0.02*image_width):int(0.98*image_width)]
     return image
 
 def draw_mouse(image,point_1,point_2,middle_point=None):
@@ -997,8 +1009,8 @@ def func_switch_two_open(firstLRFdata,LRF_line,LRF_angle):
             print("逆时针旋转",abs(LRF_angle_sub*2)-20,"度")
             func_string=("C-Clockwise:"+str(abs(LRF_angle_sub*2)-20)+"degree")
     else:
-        func_string=("不动")
-        print("Stay")
+        print("不动")
+        func_string=("Stay")
 
 
 if __name__ == '__main__':
