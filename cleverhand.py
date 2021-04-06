@@ -61,6 +61,9 @@ def get_args():
 left_button_flag=False
 right_button_flag=False
 
+func_string="Unknow"
+func_work_status_flag=False
+
 def main():
     # 参数解析 #################################################################
     args = get_args()
@@ -76,6 +79,8 @@ def main():
     min_detection_confidence = args.min_detection_confidence
     min_tracking_confidence = args.min_tracking_confidence
 
+    global func_work_status_flag
+    global func_string
     use_brect = True
 
     # 准备相机 ###############################################################
@@ -112,7 +117,7 @@ def main():
         ]
 
     # fps测量模块 ########################################################
-    cvFpsCalc = CvFpsCalc(buffer_len=10)
+    # cvFpsCalc = CvFpsCalc(buffer_len=10)
 
     # 各种历史记录数组 #################################################################
     pointer_history = deque(maxlen=16) # 食指尖坐标历史记录
@@ -122,7 +127,7 @@ def main():
     mouse_point_history = deque(maxlen=8) #指示鼠标、抓取等关键点的坐标点位置
     LRF_line_history = deque(maxlen=8) #存储左右手指间距离的历史记录
     LRF_point_history = deque(maxlen=2) #存储左右手指尖坐标的历史记录
-    hand_angle_history = deque(maxlen=8) #存储手的朝向角度的历史记录
+    hand_angle_history = deque(maxlen=16) #存储手的朝向角度的历史记录
     firstLRFdata = firstLRF() #存储下第一个左右手指数据
 
 
@@ -157,19 +162,20 @@ def main():
         LRF_line_history.append(0)
         LRF_point_history.append([0,0])
         hand_angle_history.append(0)
+        hand_angle_history.append(0)
 
 
     #  ########################################################################
-    mode = 0
+    logMode = 0
 
     while True:
-        fps = cvFpsCalc.get()
+        # fps = cvFpsCalc.get()
 
         # 按键处理（ESC：退出） #################################################
         key = cv.waitKey(10)
         if key == 27:  # ESC
             break
-        number, mode = select_mode(key, mode)
+        logNumber, logMode = select_mode(key, logMode)
 
         # 获取摄像机内容 #####################################################
         ret, image = cap.read()
@@ -185,6 +191,8 @@ def main():
         image.flags.writeable = False
         results = hands.process(image)
         image.flags.writeable = True
+
+        func_work_status_flag=False
 
         #  ####################################################################
         if results.multi_hand_landmarks is not None:
@@ -202,7 +210,7 @@ def main():
                 pre_processed_point_history_list = pre_process_point_history(
                     debug_image, pointer_history)
                 # 保存学习数据
-                logging_csv(number, mode, pre_processed_landmark_list,
+                logging_csv(logNumber, logMode, pre_processed_landmark_list,
                             pre_processed_point_history_list)
 
                 # 手势分类
@@ -216,6 +224,8 @@ def main():
                     
                     if(LRF_point_history[1]!=[0,0] and LRF_point_history[0]!=[0,0]): #LRF=Left Right Finger
                         LRF_line=int(calc_middle_line(LRF_point_history[0],LRF_point_history[1])/cap_width*500) # 将长度归一化
+                        if(LRF_line==0):
+                            LRF_line=1
                         LRF_line_history.appendleft(LRF_line) #计算得到LRF_line 这个history数组可能不需要
                         #print(LRF_line)
                         debug_image=draw_mouse(debug_image,LRF_point_history[0],LRF_point_history[1])
@@ -227,7 +237,7 @@ def main():
                         if(firstLRFdata.leftF==None and max(LRF_point_history)!=inf_LRF_line): #TODO
                             firstLRFdata=firstLRF(LRF_point_history[0],LRF_point_history[1],LRF_line,LRF_angle)
                         elif (max(LRF_point_history)!=inf_LRF_line): #判断不要快速跳动
-                            switch_two_open(firstLRFdata,LRF_line,LRF_angle)
+                            func_switch_two_open(firstLRFdata,LRF_line,LRF_angle)
 
                     #print(firstLRFdata.leftF)
                     #print(LRF_point_history)
@@ -241,7 +251,9 @@ def main():
                     hand_angle=calc_hand_angle(landmark_list[0],landmark_list[9])
                     #print(hand_angle)
                     hand_angle_history.appendleft(hand_angle)
+
                     func_slide(hand_angle_history)
+                    
                     append_other_deque(hand_angle_history)
                     
                 elif hand_sign_id == 1:   # 如果是鼠标的手势
@@ -264,7 +276,7 @@ def main():
 
                     middle_point_history.appendleft(middle_point)
                     middle_hukou_history.appendleft(middle_line/hukou_line)
-                    mouse_point_history.appendleft(middle_point) #暂时还是用两连线中点作为鼠标位置
+                    mouse_point_history.appendleft(middle_point) #暂时还是用两连线中点作为鼠标位置 TODO
                     append_other_deque(middle_point_history,middle_hukou_history,mouse_point_history) #记录数据
 
                     debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],mouse_point_history[0]) #画出中间线
@@ -277,8 +289,8 @@ def main():
                     debug_image = draw_pointer(debug_image, pointer_history)
 
                 else:
+                    
                     append_other_deque()
-                
 
                 # 手指手势分类
                 finger_gesture_id = 6
@@ -304,9 +316,10 @@ def main():
                 )
 
         else:
+            append_other_deque()
             pass
-
-        debug_image = draw_info(debug_image, fps, mode, number)
+ 
+        debug_image = draw_info(debug_image, func_string,func_work_status_flag, logMode, logNumber)
 
         # 显示出来 #############################################################
         cv.imshow('CleverHand', debug_image)
@@ -316,18 +329,18 @@ def main():
 
 
 
-def select_mode(key, mode):
+def select_mode(key, logMode):
     # 通过输入控制程序
-    number = -1
+    logNumber = -1
     if 48 <= key <= 57:  # 0 ~ 9
-        number = key - 48
+        logNumber = key - 48
     if key == 110:  # n
-        mode = 0
+        logMode = 0
     if key == 107:  # k
-        mode = 1
+        logMode = 1
     if key == 104:  # h
-        mode = 2
-    return number, mode
+        logMode = 2
+    return logNumber, logMode
 
 def calc_bounding_rect(image, landmarks):
     #计算外接矩形
@@ -391,13 +404,12 @@ def calc_angle(lp1, rp1,lp2=[0,0],rp2=[1,0]): #lp1 = leftpoint1 rp1 = rightpoint
     dy1 = rp1[1] - lp1[1]
     dx2 = rp2[0] - lp2[0]
     dy2 = rp2[1] - lp2[1]
-    print(dx2,dy2)
     angle1 = np.math.atan2(dy1, dx1)
     angle1 = int(angle1 * 180/np.math.pi)
-    print(angle1)
+    #print(angle1)
     angle2 = np.math.atan2(dy2, dx2)
     angle2 = int(angle2 * 180/np.math.pi)
-    print(angle2)
+    #print(angle2)
     if angle1*angle2 >= 0:
         included_angle = angle1-angle2
     else:
@@ -409,15 +421,10 @@ def calc_angle(lp1, rp1,lp2=[0,0],rp2=[1,0]): #lp1 = leftpoint1 rp1 = rightpoint
     return included_angle
 
 def calc_hand_angle(lm0,lm9,lp2=[0,0],rp2=[0,1]): #lm0=landmark0 lm9=landmark9
-    #print("''''''''''''")
-    #print(lm0)
-    #print(lm9)
     dx1 = lm9[0] - lm0[0]
     dy1 = lm9[1] - lm0[1]
-    #print(dx1,-dy1)
     dx2 = rp2[0] - lp2[0]
     dy2 = rp2[1] - lp2[1]
-    #print(dx2,dy2)
     angle1 = np.math.atan2(-dy1, dx1)
     angle1 = int(angle1 * 180/np.math.pi)
     #print(angle1)
@@ -432,7 +439,6 @@ def calc_hand_angle(lm0,lm9,lp2=[0,0],rp2=[0,1]): #lm0=landmark0 lm9=landmark9
             included_angle = 360 - included_angle
         else:
             included_angle=-included_angle
-    #print("''''''''''''''''''''''")
     return included_angle
 
 
@@ -486,7 +492,7 @@ def pre_process_point_history(image, point_history):
 
 
 def logging_csv(number, mode, landmark_list, point_history_list):
-# 将手掌坐标计入csv中
+# 将手掌坐标记入csv中
     if mode == 0:
         pass
     if mode == 1 and (0 <= number <= 9):
@@ -701,7 +707,7 @@ def draw_bounding_rect(use_brect, image, brect):
 
 
 def draw_info_text(image, brect, handedness, hand_sign_text,finger_gesture_text):
-#打印手势信息（外接矩形上方的黑色框框）
+#打印手势信息（动态手势信息和黑框内的信息）
     cv.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
                  (0, 0, 0), -1)
 
@@ -729,16 +735,18 @@ def draw_pointer(image, point_history):
                       (152, 251, 152), 2)
     return image
 
-def draw_info(image, fps, mode, number):
+def draw_info(image, func_string,func_work_status_flag, logMode, number):
 #画面左上方打印fps等信息
-    cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
-               1.0, (0, 0, 0), 4, cv.LINE_AA)
-    cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
-               1.0, (255, 255, 255), 2, cv.LINE_AA)
+    if(func_work_status_flag):
+        cv.putText(image, "Current action:" + func_string, (10, 30), cv.FONT_HERSHEY_SIMPLEX,
+                1.0, (240, 240, 240), 1, cv.LINE_AA)
+    else:
+        cv.putText(image, "Last action:" + func_string, (10, 30), cv.FONT_HERSHEY_SIMPLEX,
+                1.0, (255, 255, 255), 1, cv.LINE_AA)
 
     mode_string = ['Logging Key Point', 'Logging Point History']
-    if 1 <= mode <= 2:
-        cv.putText(image, "MODE:" + mode_string[mode - 1], (10, 90),
+    if 1 <= logMode <= 2:
+        cv.putText(image, "LOGMODE:" + mode_string[logMode - 1], (10, 90),
                    cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
                    cv.LINE_AA)
         if 0 <= number <= 9:
@@ -772,6 +780,10 @@ def func_mouse(image,mouse_point_history,middle_hukou_history):
     screen_height = args.sheight
 
     global right_button_flag
+    global left_button_flag
+    global func_work_status_flag
+    global func_string
+    func_work_status_flag=True
 
     image_width, image_height = image.shape[1], image.shape[0]
 
@@ -797,11 +809,15 @@ def func_mouse(image,mouse_point_history,middle_hukou_history):
     elif middle_hukou_history[0]>close_middle_hukou and middle_hukou_history[1]<close_middle_hukou and len(open_mh_array)>2:
         mouse.click(Button.left,2)
         print("双击Left")
+        func_work_status_flag=True
+        func_string='Double Click Left'
     else:
         if(right_button_flag==True):
             mouse.release(Button.right)
             right_button_flag=False
             print("松开Right")
+            func_work_status_flag=True
+            func_string='Singal Click Right'
         move_distance_x = (mouse_point_history[0][0]-mouse_point_history[1][0]) #防颤抖
         move_distance_y = (mouse_point_history[0][1]-mouse_point_history[1][1])
         if abs(move_distance_x)<3 and abs(move_distance_y)<3:
@@ -842,6 +858,8 @@ def func_grab(image,mouse_point_history,middle_hukou_history):
     screen_height = args.sheight
 
     global left_button_flag
+    global func_work_status_flag
+    global func_string
 
     image_width, image_height = image.shape[1], image.shape[0]
 
@@ -858,6 +876,8 @@ def func_grab(image,mouse_point_history,middle_hukou_history):
     if max(middle_hukou_history)==inf_middle_hukou:
         pass #存在过往误判 鼠标初始化未完成 不进行操作
     elif len(close_mh_array)>=4:
+        func_work_status_flag=True
+        func_string='Press Left And Move'
         if(left_button_flag==False): #鼠标左键没按下
             mouse.press(Button.left) # 按下鼠标左键进行拖动
             left_button_flag=True
@@ -893,6 +913,8 @@ def func_grab(image,mouse_point_history,middle_hukou_history):
             while mouse.position!=mouseLoc:
                 pass
     else:
+        func_work_status_flag=True
+        func_string='Release Left And Move'
         if(left_button_flag==True):
             mouse.release(Button.left) # 松开鼠标左键进行拖动
             print("松开Left")
@@ -930,34 +952,55 @@ def func_grab(image,mouse_point_history,middle_hukou_history):
 
 def func_slide(hand_angle_history):
     # 执行上一张下一张功能
-    args = get_args()
+    global func_work_status_flag
+    global func_string
+    pos_hand_angle_list=[]
+    neg_hand_angle_list=[]
+    for i in range(len(hand_angle_history)):
+        if (hand_angle_history[i]>0):
+            pos_hand_angle_list.append(hand_angle_history[i])
+        elif (hand_angle_history[i]<0):
+            neg_hand_angle_list.append(hand_angle_history[i])
 
-    if deque.count(hand_angle_history,0)>2:
-        print(deque.count(hand_angle_history,0))
+    if deque.count(hand_angle_history,0)>=6:
         pass
-    elif hand_angle_history[0]<0 and hand_angle_history[7]>0 and hand_angle_history[1]>0 and hand_angle_history[7]-hand_angle_history[0]>60:
+    elif hand_angle_history[0]<0 and hand_angle_history[-1]>0 and len(neg_hand_angle_list)==4 and len(pos_hand_angle_list)>=6 and hand_angle_history[-1]-hand_angle_history[0]>40:
         print("下一张")
-    elif hand_angle_history[0]>0 and hand_angle_history[7]<0 and hand_angle_history[1]<0 and hand_angle_history[0]-hand_angle_history[7]>60:
+        func_work_status_flag=True
+        func_string="Next One"
+    elif hand_angle_history[0]>0 and hand_angle_history[-1]<0 and len(pos_hand_angle_list)==4 and len(neg_hand_angle_list)>=6 and hand_angle_history[0]-hand_angle_history[-1]>40:
         print("上一张")
+        func_work_status_flag=True
+        func_string="Last One"
 
-def switch_two_open(firstLRFdata,LRF_line,LRF_angle):
+def func_switch_two_open(firstLRFdata,LRF_line,LRF_angle):
 #对两个张开手势的运动结果的功能切换
+    global func_work_status_flag
+    global func_string
+    func_work_status_flag=True
     LRF_line_sub=LRF_line-firstLRFdata.LRF_line
     LRF_angle_sub=LRF_angle-firstLRFdata.LRF_angle
-    print(LRF_line,firstLRFdata.LRF_line,LRF_angle,firstLRFdata.LRF_angle)
-    print(LRF_line_sub,LRF_angle_sub)
+    #print(LRF_line,firstLRFdata.LRF_line,LRF_angle,firstLRFdata.LRF_angle)
+    #print(LRF_line_sub,LRF_angle_sub)
     if(abs(LRF_line_sub)>0.3*firstLRFdata.LRF_line):
         if(LRF_line_sub>0):
             print("放大：",abs(LRF_line_sub)/firstLRFdata.LRF_line*0.8)
+            func_string=("Zoom on:"+str(abs(LRF_line_sub)/firstLRFdata.LRF_line*0.8))
         elif(LRF_line_sub<0):
             print("缩小：",abs(LRF_line_sub)/firstLRFdata.LRF_line*1.2)
+            func_string=("Zoom out:"+str(abs(LRF_line_sub)/firstLRFdata.LRF_line*1.2))
     elif(abs(LRF_angle_sub)>10): 
         if(LRF_angle_sub>0):
             print("顺时针旋转",abs(LRF_angle_sub*2)-20,"度")
+            func_string=("Clockwise:"+str(abs(LRF_angle_sub*2)-20)+"degree")
         elif(LRF_angle_sub<0):
             print("逆时针旋转",abs(LRF_angle_sub*2)-20,"度")
+            func_string=("C-Clockwise:"+str(abs(LRF_angle_sub*2)-20)+"degree")
     else:
-        print("不动")
+        func_string=("不动")
+        print("Stay")
+
 
 if __name__ == '__main__':
     main()
+
