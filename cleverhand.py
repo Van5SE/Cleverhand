@@ -966,13 +966,26 @@ def func_slide(hand_angle_history):
     # 执行上一张下一张功能
     global func_work_status_flag
     global func_string
+    big_angle=110
+    small_angle=40
     pos_hand_angle_list=[]
     neg_hand_angle_list=[]
+    big_hand_angle_list=[]
+    small_hand_angle_list=[]
     for i in range(len(hand_angle_history)):
         if (hand_angle_history[i]>0):
             pos_hand_angle_list.append(hand_angle_history[i])
         elif (hand_angle_history[i]<0):
             neg_hand_angle_list.append(hand_angle_history[i])
+        if (abs(hand_angle_history[i])>big_angle):
+            big_hand_angle_list.append(hand_angle_history[i])
+        elif (abs(hand_angle_history[i])<small_angle and hand_angle_history[i]!=0):
+            small_hand_angle_list.append(hand_angle_history[i])
+
+
+    print(hand_angle_history)
+    print(len(big_hand_angle_list))
+    print(len(small_hand_angle_list))
 
     if deque.count(hand_angle_history,0)>=6:
         pass
@@ -984,6 +997,17 @@ def func_slide(hand_angle_history):
         print("上一张")
         func_work_status_flag=True
         func_string="Last One"
+    elif abs(hand_angle_history[0])<small_angle and abs(hand_angle_history[-1])>big_angle and len(small_hand_angle_list)==4 and len(big_hand_angle_list)>=4:
+        print("向上")
+        func_work_status_flag=True
+        func_string="Up"
+    elif abs(hand_angle_history[0])>big_angle and abs(hand_angle_history[-1])<small_angle and len(big_hand_angle_list)==4 and len(small_hand_angle_list)>=4:
+        print("向下")
+        func_work_status_flag=True
+        func_string="Down"
+    
+
+    
 
 def func_switch_two_open(firstLRFdata,LRF_line,LRF_angle):
 #对两个张开手势的运动结果的功能切换
