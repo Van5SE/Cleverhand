@@ -52,6 +52,8 @@ def get_args():
 
     parser.add_argument("--swidth", help='screen width', type=int, default=sw)
     parser.add_argument("--sheight", help='screen height', type=int, default=sh)
+    parser.add_argument("--small_angle",type=int,default=60) #设定60度以下为小角度
+    parser.add_argument("--big_angle",type=int,default=110) #设定110度以上为大角度
 
 
     args = parser.parse_args()
@@ -964,10 +966,11 @@ def func_grab(image,mouse_point_history,middle_hukou_history):
 
 def func_slide(hand_angle_history):
     # 执行上一张下一张功能
+    args=get_args()
     global func_work_status_flag
     global func_string
-    big_angle=110
-    small_angle=40
+    big_angle=args.big_angle
+    small_angle=args.small_angle
     pos_hand_angle_list=[]
     neg_hand_angle_list=[]
     big_hand_angle_list=[]
