@@ -304,7 +304,7 @@ def main():
                     append_other_deque()
 
                 # 手指手势分类
-                finger_gesture_id = 6
+                finger_gesture_id = 0
                 point_history_len = len(pre_processed_point_history_list)
                 if point_history_len == (16 * 2):
                     finger_gesture_id = point_history_classifier(
@@ -1022,7 +1022,7 @@ def func_slide(hand_angle_history):
 def func_ok(hand_gesture_history):
     global func_work_status_flag
     global func_string
-    print(hand_gesture_history)
+    #print(hand_gesture_history)
     oknum=0
     for i in range(len(hand_gesture_history)): #
         if hand_gesture_history[i]==3:
@@ -1033,7 +1033,7 @@ def func_ok(hand_gesture_history):
         print("确定")
         func_work_status_flag=True
         func_string="Confirm"
-    print(oknum)
+    #print(oknum)
     pass
 
 def func_switch_two_open(firstLRFdata,LRF_line,LRF_angle):
