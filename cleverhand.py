@@ -19,15 +19,12 @@ from model import KeyPointClassifier
 from model import PointHistoryClassifier
 from utils import firstLRF #导入必要的类
 
-
-
-
-                
+ 
                 
 def get_args():
     parser = argparse.ArgumentParser()
     #没有后置 前置摄像头为0 有后置 前置摄像头为1
-    parser.add_argument("--device", type=int, default=0)
+    parser.add_argument("--device", type=int, default=1)
     parser.add_argument("--cwidth", help='cap width', type=int, default=1280)
     parser.add_argument("--cheight", help='cap height', type=int, default=720)
 
@@ -131,6 +128,7 @@ def main():
     LRF_point_history = deque(maxlen=2) #存储左右手指尖坐标的历史记录
     hand_angle_history = deque(maxlen=16) #存储手的朝向角度的历史记录
     firstLRFdata = firstLRF() #存储下第一个左右手指数据
+    hand_gesture_history = deque(maxlen=64) # 存储过往识别出的手势
 
 
     def append_other_deque(deque_1=None,deque_2=None,deque_3=None,firstLRF_1=None):
@@ -152,6 +150,9 @@ def main():
             firstLRFdata=firstLRF()
         if(hand_angle_history!=deque_1 and hand_angle_history!=deque_2 and hand_angle_history!=deque_3):
             hand_angle_history.appendleft(0)
+        if(hand_gesture_history!=deque_1 and hand_gesture_history!=deque_2 and hand_gesture_history!=deque_3):
+            hand_gesture_history.appendleft(10)
+        
         
 
 
@@ -165,6 +166,14 @@ def main():
         LRF_point_history.append([0,0])
         hand_angle_history.append(0)
         hand_angle_history.append(0)
+        hand_gesture_history.append(10)
+        hand_gesture_history.append(10)
+        hand_gesture_history.append(10)
+        hand_gesture_history.append(10)
+        hand_gesture_history.append(10)
+        hand_gesture_history.append(10)
+        hand_gesture_history.append(10)
+        hand_gesture_history.append(10)
 
 
     #  ########################################################################
@@ -217,6 +226,7 @@ def main():
 
                 # 手势分类
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
+                hand_gesture_history.appendleft(hand_sign_id)
                 if hand_sign_id == 0 and len(results.multi_handedness)==2 : # 张开手掌的两只手手势
                     
                     if(handedness.classification[0].label[0:]=="Right"):
@@ -251,11 +261,8 @@ def main():
 
                 elif hand_sign_id == 0 and len(results.multi_handedness)==1 : # 张开手掌的一只手手势
                     hand_angle=calc_hand_angle(landmark_list[0],landmark_list[9])
-                    #print(hand_angle)
                     hand_angle_history.appendleft(hand_angle)
-
                     func_slide(hand_angle_history)
-                    
                     append_other_deque(hand_angle_history)
                     
                 elif hand_sign_id == 1:   # 如果是鼠标的手势
@@ -290,6 +297,9 @@ def main():
 
                     debug_image = draw_pointer(debug_image, pointer_history)
 
+                elif hand_sign_id == 3:
+                    func_ok(hand_gesture_history)
+                    pass
                 else:  
                     append_other_deque()
 
@@ -986,9 +996,9 @@ def func_slide(hand_angle_history):
             small_hand_angle_list.append(hand_angle_history[i])
 
 
-    print(hand_angle_history)
-    print(len(big_hand_angle_list))
-    print(len(small_hand_angle_list))
+    #print(hand_angle_history)
+    #print(len(big_hand_angle_list))
+    #print(len(small_hand_angle_list))
 
     if deque.count(hand_angle_history,0)>=6:
         pass
@@ -1009,8 +1019,22 @@ def func_slide(hand_angle_history):
         func_work_status_flag=True
         func_string="Down"
     
-
-    
+def func_ok(hand_gesture_history):
+    global func_work_status_flag
+    global func_string
+    print(hand_gesture_history)
+    oknum=0
+    for i in range(len(hand_gesture_history)): #
+        if hand_gesture_history[i]==3:
+            oknum=oknum+1
+        else:
+            break
+    if(oknum==20):
+        print("确定")
+        func_work_status_flag=True
+        func_string="Confirm"
+    print(oknum)
+    pass
 
 def func_switch_two_open(firstLRFdata,LRF_line,LRF_angle):
 #对两个张开手势的运动结果的功能切换
