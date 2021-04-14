@@ -212,23 +212,21 @@ def main():
             for hand_landmarks, handedness,i in zip(results.multi_hand_landmarks,
                                                   results.multi_handedness,
                                                   range(len(results.multi_hand_landmarks))):
-
                 # 计算手的外接矩形
                 brect = calc_bounding_rect(debug_image, hand_landmarks)
-                if(len(results.multi_hand_landmarks)==2):
-                    if(i==0):
-                        brect_history[0]=brect
-                    if(i==1):
-                        brect_history[1]=brect
-                        #print(brect_history) #计算brect_history 两矩阵的重叠面积是否超过60% 得到是否跳过的命令
-                        overlap_area=calc_overlap_rect_area(brect_history[0],brect_history[1])
-                        brect0_area=calc_rect_area(brect_history[0])
-                        brect1_area=calc_rect_area(brect_history[1])
-                        #print(overlap_area,brect0_area,brect1_area)
-                        print(overlap_area/brect0_area,overlap_area/brect1_area)
-                        if (max(overlap_area/brect0_area,overlap_area/brect1_area)>=0.6):
-                            print("存在一个识别错误的手")
-                            continue
+                if(len(results.multi_hand_landmarks)==2 and i==0): #预先计算出两个矩形的重叠面积占比 大的那个不画出来
+                    brect_1 = calc_bounding_rect(debug_image,results.multi_hand_landmarks[1])
+                    brect_history[0]=brect
+                    brect_history[1]=brect_1
+                    #print(brect_history) #计算brect_history 两矩阵的重叠面积是否超过60% 得到是否跳过的命令
+                    overlap_area=calc_overlap_rect_area(brect_history[0],brect_history[1])
+                    brect0_area=calc_rect_area(brect_history[0])
+                    brect1_area=calc_rect_area(brect_history[1])
+                    #print(overlap_area,brect0_area,brect1_area)
+                    #print(overlap_area/brect0_area,overlap_area/brect1_area)
+                    if (max(overlap_area/brect0_area,overlap_area/brect1_area)>=0.6):
+                        print("存在一个识别错误的手 已将面积较的跳过显示")
+                        continue
                 else:
                     brect_history[0]=0
                     brect_history[1]=0
