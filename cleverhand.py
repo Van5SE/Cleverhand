@@ -23,7 +23,7 @@ from utils import firstLRF #导入必要的类
 def get_args():
     parser = argparse.ArgumentParser()
     #没有后置 前置摄像头为0 有后置 前置摄像头为1
-    parser.add_argument("--device", type=int, default=0)
+    parser.add_argument("--device", type=int, default=1)
     parser.add_argument("--cwidth", help='cap width', type=int, default=1280)
     parser.add_argument("--cheight", help='cap height', type=int, default=720)
 
@@ -123,6 +123,7 @@ def main():
     finger_gesture_history = deque(maxlen=16) # 手指手势历史记录
     middle_hukou_history = deque(maxlen=8) #中间线与虎口长度的比值的历史记录
     mouse_point_history = deque(maxlen=8) #指示鼠标、抓取等关键点的坐标点位置
+    brect_history = deque(maxlen=2) #存储手的brect坐标
     LRF_point_history = deque(maxlen=2) #存储左右手指尖坐标的历史记录
     hand_angle_history = deque(maxlen=16) #存储手的朝向角度的历史记录
     firstLRFdata = firstLRF() #存储下第一个左右手指数据
@@ -161,6 +162,7 @@ def main():
         pointer_history.append([0,0])
         middle_hukou_history.append(inf_middle_hukou)
         mouse_point_history.append([0,0])
+        brect_history.append(0)
         LRF_point_history.append([0,0])
         hand_angle_history.append(0)
         hand_angle_history.append(0)
@@ -213,9 +215,20 @@ def main():
 
                 # 计算手的外接矩形
                 brect = calc_bounding_rect(debug_image, hand_landmarks)
-                print(len(results.multi_hand_landmarks))
-                if(i==1):
-                    print(brect)
+                if(len(results.multi_hand_landmarks)==2):
+                    if(i==0):
+                        brect_history[0]=brect
+                    if(i==1):
+                        brect_history[1]=brect
+                        print(brect_history) #计算brect_history 得到是否跳过的命令
+                        if(brect_history[1][0]>brect_history[0][0] and brect_history[1][1]>brect_history[0][1] 
+                            and brect_history[1][0]<brect_history[0][2] and brect_history[1][1]<brect_history[0][3]
+                            and brect_history[1][2]<brect_history[0][2] or brect_history[1][3]<brect_history[0][3]):
+                            print("存在一个识别错误的手")
+                            continue
+                else:
+                    brect_history[0]=0
+                    brect_history[1]=0
                 # 计算手的关键点
                 landmark_list = calc_landmark_list(debug_image, hand_landmarks)
 
