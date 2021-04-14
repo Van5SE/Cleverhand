@@ -207,11 +207,15 @@ def main():
 
         #  ####################################################################
         if results.multi_hand_landmarks is not None:
-            for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
-                                                  results.multi_handedness):
+            for hand_landmarks, handedness,i in zip(results.multi_hand_landmarks,
+                                                  results.multi_handedness,
+                                                  range(len(results.multi_hand_landmarks))):
 
                 # 计算手的外接矩形
                 brect = calc_bounding_rect(debug_image, hand_landmarks)
+                print(len(results.multi_hand_landmarks))
+                if(i==1):
+                    print(brect)
                 # 计算手的关键点
                 landmark_list = calc_landmark_list(debug_image, hand_landmarks)
 
