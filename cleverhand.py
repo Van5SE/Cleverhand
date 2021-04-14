@@ -23,7 +23,7 @@ from utils import firstLRF #导入必要的类
 def get_args():
     parser = argparse.ArgumentParser()
     #没有后置 前置摄像头为0 有后置 前置摄像头为1
-    parser.add_argument("--device", type=int, default=1)
+    parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--cwidth", help='cap width', type=int, default=1280)
     parser.add_argument("--cheight", help='cap height', type=int, default=720)
 
@@ -220,10 +220,13 @@ def main():
                         brect_history[0]=brect
                     if(i==1):
                         brect_history[1]=brect
-                        print(brect_history) #计算brect_history 得到是否跳过的命令
-                        if(brect_history[1][0]>brect_history[0][0] and brect_history[1][1]>brect_history[0][1] 
-                            and brect_history[1][0]<brect_history[0][2] and brect_history[1][1]<brect_history[0][3]
-                            and brect_history[1][2]<brect_history[0][2] or brect_history[1][3]<brect_history[0][3]):
+                        #print(brect_history) #计算brect_history 两矩阵的重叠面积是否超过60% 得到是否跳过的命令
+                        overlap_area=calc_overlap_rect_area(brect_history[0],brect_history[1])
+                        brect0_area=calc_rect_area(brect_history[0])
+                        brect1_area=calc_rect_area(brect_history[1])
+                        #print(overlap_area,brect0_area,brect1_area)
+                        print(overlap_area/brect0_area,overlap_area/brect1_area)
+                        if (max(overlap_area/brect0_area,overlap_area/brect1_area)>=0.6):
                             print("存在一个识别错误的手")
                             continue
                 else:
@@ -460,6 +463,19 @@ def calc_hand_angle(lm0,lm9,lp2=[0,0],rp2=[0,1]): #lm0=landmark0 lm9=landmark9
             included_angle=-included_angle
     return included_angle
 
+
+def calc_overlap_rect_area(rect1,rect2):
+    if(rect1[2]<=rect2[0] or rect2[2]<=rect1[0]) or (rect1[3]<=rect2[1] or rect2[3]<=rect1[1]):
+        return 0
+    else:
+        lens=min(rect1[2],rect2[2])-max(rect1[0],rect2[0])
+        wide=min(rect1[3],rect2[3])-max(rect1[1],rect2[1])
+        return lens*wide
+
+def calc_rect_area(rect):
+    lens=rect[3]-rect[1]
+    wide=rect[2]-rect[0]
+    return lens*wide
 
 def pre_process_landmark(landmark_list):
     temp_landmark_list = copy.deepcopy(landmark_list)
