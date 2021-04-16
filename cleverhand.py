@@ -17,6 +17,7 @@ from pynput.mouse import Button, Controller
 from model import KeyPointClassifier
 from model import PointHistoryClassifier
 from utils import firstLRF #导入必要的类
+from utils import func_result
 
  
                 
@@ -61,7 +62,8 @@ left_button_flag=False
 right_button_flag=False
 
 func_string="Unknow"
-func_work_status_flag=False
+func_work_status_flag=0
+fwsf_history=deque(maxlen=8) #fwsf=func_work_status_flag
 
 def main():
     # 参数解析 #################################################################
@@ -128,8 +130,9 @@ def main():
     hand_angle_history = deque(maxlen=16) #存储手的朝向角度的历史记录
     firstLRFdata = firstLRF() #存储下第一个左右手指数据
     hand_gesture_history = deque(maxlen=64) # 存储过往识别出的手势
-    spin_angle_history = deque(maxlen=8) #存储旋转的角度数据
-    zoom_time_history = deque(maxlen=8) #存储放大倍数数据
+    spin_angle_history = deque(maxlen=12) #存储旋转的角度数据
+    zoom_time_history = deque(maxlen=12) #存储放大倍数数据
+    func_res = func_result() #存储下操作的结果和参数 #TODO
 
 
 
@@ -175,7 +178,10 @@ def main():
         hand_gesture_history.append(10)
         hand_gesture_history.append(10)
         spin_angle_history.append(0)
+        spin_angle_history.append(0)
         zoom_time_history.append(0)
+        zoom_time_history.append(0)
+        fwsf_history.append(0)
 
 
     #  ########################################################################
@@ -205,7 +211,7 @@ def main():
         results = hands.process(image)
         image.flags.writeable = True
 
-        func_work_status_flag=False
+        func_work_status_flag=0
 
         #  ####################################################################
         if results.multi_hand_landmarks is not None:
@@ -225,7 +231,7 @@ def main():
                     #print(overlap_area,brect0_area,brect1_area)
                     #print(overlap_area/brect0_area,overlap_area/brect1_area)
                     if (max(overlap_area/brect0_area,overlap_area/brect1_area)>=0.6):
-                        print("存在一个识别错误的手 已将面积较的跳过显示")
+                        print("存在一个识别错误的手 已将面积小的跳过显示")
                         continue
                 else:
                     brect_history[0]=0
@@ -263,7 +269,9 @@ def main():
                         if(firstLRFdata.leftF==None and max(LRF_point_history)!=inf_LRF_line): #TODO
                             firstLRFdata=firstLRF(LRF_point_history[0],LRF_point_history[1],LRF_line,LRF_angle)
                         elif (max(LRF_point_history)!=inf_LRF_line): #判断不要快速跳动
-                            func_switch_two_open(firstLRFdata,LRF_line,LRF_angle,zoom_time_history,spin_angle_history)
+                            func_op,func_param=func_switch_two_open(firstLRFdata,LRF_line,LRF_angle,zoom_time_history,spin_angle_history)
+                            print("func_op param",func_op,func_param)
+                            func_res=func_result(func_op,func_param)
                     
                     append_other_deque(LRF_point_history,zoom_time_history,spin_angle_history,firstLRF_1=firstLRFdata)
 
@@ -293,7 +301,7 @@ def main():
                     hukou_line=calc_hukou_line(landmark_list[0],landmark_list[5]) #grab动作的虎口改为计算掌根到食指关节长度
 
                     middle_hukou_history.appendleft(middle_line/hukou_line)
-                    mouse_point_history.appendleft(middle_point) #暂时还是用两连线中点作为鼠标位置 TODO
+                    mouse_point_history.appendleft(middle_point) #暂时还是用两连线中点作为鼠标位置
                     append_other_deque(middle_hukou_history,mouse_point_history) #记录数据
 
                     debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],mouse_point_history[0]) #画出中间线
@@ -338,7 +346,24 @@ def main():
             append_other_deque()
             debug_image = draw_image(debug_image)
             pass
- 
+        
+        # 保存最近的工作状态 判断最终输出结果 TODO
+        fwsf_history.appendleft(func_work_status_flag)
+        if(Counter(fwsf_history).most_common()[0][0]==6):
+            print(fwsf_history)
+        if(fwsf_history[1]==6 and fwsf_history[0]==0 and Counter(fwsf_history).most_common()[0][0]==6): #修改func_string 以及进行输出
+            print(func_res.func_op,func_res.func_param)
+            print("spin",spin_angle_history)
+            print("zoom",zoom_time_history)
+            if("Zoom"  in func_res.func_op):
+                func_res.func_param=np.median(zoom_time_history) #取中位数参数作为最终操作
+                func_string=func_res.func_op+":"+str(abs(func_res.func_param))
+            elif("Clockwise" in func_res.func_op):
+                func_res.func_param=np.median(spin_angle_history)
+                func_string=func_res.func_op+":"+str(abs(func_res.func_param))
+
+            print("双手张开手势结束 输出结果")
+
         debug_image = draw_info(debug_image, func_string,func_work_status_flag, logMode, logNumber)
 
         # 显示出来 #############################################################
@@ -815,7 +840,7 @@ def draw_mouse(image,point_1,point_2,middle_point=None):
     return image
 
 def func_mouse(image,mouse_point_history,middle_hukou_history):
-#执行鼠标功能 TODO
+#执行鼠标功能 
     args = get_args()
 
     inf_middle_hukou = args.inf_middle_hukou
@@ -828,7 +853,6 @@ def func_mouse(image,mouse_point_history,middle_hukou_history):
     global left_button_flag
     global func_work_status_flag
     global func_string
-    func_work_status_flag=True
 
     image_width, image_height = image.shape[1], image.shape[0]
 
@@ -854,14 +878,14 @@ def func_mouse(image,mouse_point_history,middle_hukou_history):
     elif middle_hukou_history[0]>close_middle_hukou and middle_hukou_history[1]<close_middle_hukou and len(open_mh_array)>2:
         mouse.click(Button.left,2)
         print("双击Left")
-        func_work_status_flag=True
+        func_work_status_flag=1
         func_string='Double Click Left'
     else:
         if(right_button_flag==True):
             mouse.release(Button.right)
             right_button_flag=False
             print("松开Right")
-            func_work_status_flag=True
+            func_work_status_flag=1
             func_string='Singal Click Right'
         move_distance_x = (mouse_point_history[0][0]-mouse_point_history[1][0]) #防颤抖
         move_distance_y = (mouse_point_history[0][1]-mouse_point_history[1][1])
@@ -893,7 +917,7 @@ def func_mouse(image,mouse_point_history,middle_hukou_history):
                 pass
 
 def func_grab(image,mouse_point_history,middle_hukou_history):
-#执行抓取功能 TODO
+#执行抓取功能 
     args = get_args()
 
     inf_middle_hukou = args.inf_middle_hukou
@@ -922,7 +946,7 @@ def func_grab(image,mouse_point_history,middle_hukou_history):
     if max(middle_hukou_history)==inf_middle_hukou:
         pass #存在过往误判 鼠标初始化未完成 不进行操作
     elif len(close_mh_array)>=4:
-        func_work_status_flag=True
+        func_work_status_flag=2
         func_string='Press Left And Move'
         if(left_button_flag==False): #鼠标左键没按下
             mouse.press(Button.left) # 按下鼠标左键进行拖动
@@ -959,7 +983,7 @@ def func_grab(image,mouse_point_history,middle_hukou_history):
             while mouse.position!=mouseLoc:
                 pass
     else:
-        func_work_status_flag=True
+        func_work_status_flag=2
         func_string='Release Left And Move'
         if(left_button_flag==True):
             mouse.release(Button.left) # 松开鼠标左键进行拖动
@@ -1026,19 +1050,19 @@ def func_slide(hand_angle_history):
         pass
     elif hand_angle_history[0]<0 and hand_angle_history[-1]>0 and len(neg_hand_angle_list)==4 and len(pos_hand_angle_list)>=6 and hand_angle_history[-1]-hand_angle_history[0]>40:
         print("下一张")
-        func_work_status_flag=True
+        func_work_status_flag=3
         func_string="Next One"
     elif hand_angle_history[0]>0 and hand_angle_history[-1]<0 and len(pos_hand_angle_list)==4 and len(neg_hand_angle_list)>=6 and hand_angle_history[0]-hand_angle_history[-1]>40:
         print("上一张")
-        func_work_status_flag=True
+        func_work_status_flag=3
         func_string="Last One"
     elif abs(hand_angle_history[0])<small_angle and abs(hand_angle_history[-1])>big_angle and len(small_hand_angle_list)==4 and len(big_hand_angle_list)>=4:
         print("向上")
-        func_work_status_flag=True
+        func_work_status_flag=4
         func_string="Up"
     elif abs(hand_angle_history[0])>big_angle and abs(hand_angle_history[-1])<small_angle and len(big_hand_angle_list)==4 and len(small_hand_angle_list)>=4:
         print("向下")
-        func_work_status_flag=True
+        func_work_status_flag=4
         func_string="Down"
     
 def func_ok(hand_gesture_history):
@@ -1053,18 +1077,19 @@ def func_ok(hand_gesture_history):
             break
     if(oknum==20):
         print("确定")
-        func_work_status_flag=True
+        func_work_status_flag=5
         func_string="Confirm"
     #print(oknum)
     pass
 
 def func_switch_two_open(firstLRFdata,LRF_line,LRF_angle,zoom_time_history,spin_angle_history):
-#对两个张开手势的运动结果的功能切换
+#对两个张开手势的运动结果的功能切换 TODO
     global func_work_status_flag
     global func_string
-    func_work_status_flag=True
+    func_work_status_flag=6
     LRF_line_sub=LRF_line-firstLRFdata.LRF_line
     LRF_angle_sub=LRF_angle-firstLRFdata.LRF_angle
+    func_op=""
     #print(LRF_line,firstLRFdata.LRF_line,LRF_angle,firstLRFdata.LRF_angle)
     #print(LRF_line_sub,LRF_angle_sub)
     if(abs(LRF_line_sub)>0.3*firstLRFdata.LRF_line):
@@ -1073,28 +1098,35 @@ def func_switch_two_open(firstLRFdata,LRF_line,LRF_angle,zoom_time_history,spin_
             zoom_time=LRF_line_sub/firstLRFdata.LRF_line
             zoom_time_history.appendleft(zoom_time)
             print("放大：",abs(zoom_time))
-            func_string=("Zoom on:"+str(abs(zoom_time)))
+            func_op="Zoom on"
+            func_string=(func_op+":"+str(abs(zoom_time)))
         elif(LRF_line_sub<0):
             zoom_time=LRF_line_sub/firstLRFdata.LRF_line*1.5
             zoom_time_history.appendleft(zoom_time)
             print("缩小：",abs(zoom_time))
-            func_string=("Zoom out:"+str(abs(zoom_time)))
+            func_op="Zoom out"
+            func_string=(func_op+":"+str(abs(zoom_time)))
+        return func_op,zoom_time
 
     elif(abs(LRF_angle_sub)>10): 
         if(LRF_angle_sub>0):
             spin_angle=LRF_angle_sub*2-20
             spin_angle_history.appendleft(spin_angle)
             print("顺时针旋转",abs(spin_angle),"度")
-            func_string=("Clockwise:"+str(abs(spin_angle))+"degree")
+            func_op="Clockwise"
+            func_string=(func_op+":"+str(abs(spin_angle))+"degree")
         elif(LRF_angle_sub<0):
             spin_angle=LRF_angle_sub*2+20
             spin_angle_history.appendleft(spin_angle)
             print("逆时针旋转",abs(spin_angle),"度")
-            func_string=("C-Clockwise:"+str(abs(spin_angle))+"degree")
-
+            func_op="C-Clockwise"
+            func_string=(func_op+":"+str(abs(spin_angle))+"degree")
+        return func_op,spin_angle
     else:
         print("不动")
         func_string=("Stay")
+        func_op="Stay"
+        return func_op,0
 
 
 if __name__ == '__main__':
