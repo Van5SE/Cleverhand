@@ -91,9 +91,10 @@ def main():
 
     # 加载模型 #############################################################
     mp_hands = mp.solutions.hands
+    hands_max_num=2
     hands = mp_hands.Hands(
         static_image_mode=use_static_image_mode,
-        max_num_hands=2,
+        max_num_hands=hands_max_num, #TODO
         min_detection_confidence=min_detection_confidence,
         min_tracking_confidence=min_tracking_confidence,
     )
@@ -132,7 +133,7 @@ def main():
     hand_gesture_history = deque(maxlen=64) # 存储过往识别出的手势
     spin_angle_history = deque(maxlen=12) #存储旋转的角度数据
     zoom_time_history = deque(maxlen=12) #存储放大倍数数据
-    func_res = func_result() #存储下操作的结果和参数 #TODO
+    func_res = func_result() #存储下操作的结果和参数
 
 
 
@@ -147,7 +148,7 @@ def main():
             mouse_point_history.appendleft([0,0])
         if(LRF_point_history!=deque_1 and LRF_point_history!=deque_2 and LRF_point_history!=deque_3):
             LRF_point_history.appendleft([0,0])
-        if(firstLRFdata!=firstLRF_1 and firstLRFdata.leftF!=None): #TODO 
+        if(firstLRFdata!=firstLRF_1 and firstLRFdata.leftF!=None):
             firstLRFdata=firstLRF()
         if(hand_angle_history!=deque_1 and hand_angle_history!=deque_2 and hand_angle_history!=deque_3):
             hand_angle_history.appendleft(0)
@@ -266,7 +267,7 @@ def main():
                         LRF_angle=calc_angle(LRF_point_history[0],LRF_point_history[1]) #计算得到LRFangle
                         #print(LRFangle)
 
-                        if(firstLRFdata.leftF==None and max(LRF_point_history)!=inf_LRF_line): #TODO
+                        if(firstLRFdata.leftF==None and max(LRF_point_history)!=inf_LRF_line):
                             firstLRFdata=firstLRF(LRF_point_history[0],LRF_point_history[1],LRF_line,LRF_angle)
                         elif (max(LRF_point_history)!=inf_LRF_line): #判断不要快速跳动
                             func_op,func_param=func_switch_two_open(firstLRFdata,LRF_line,LRF_angle,zoom_time_history,spin_angle_history)
@@ -301,7 +302,7 @@ def main():
                     hukou_line=calc_hukou_line(landmark_list[0],landmark_list[5]) #grab动作的虎口改为计算掌根到食指关节长度
 
                     middle_hukou_history.appendleft(middle_line/hukou_line)
-                    mouse_point_history.appendleft(middle_point) #暂时还是用两连线中点作为鼠标位置
+                    mouse_point_history.appendleft(middle_point) #用两连线中点作为鼠标位置
                     append_other_deque(middle_hukou_history,mouse_point_history) #记录数据
 
                     debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],mouse_point_history[0]) #画出中间线
@@ -313,9 +314,20 @@ def main():
 
                     debug_image = draw_pointer(debug_image, pointer_history)
 
-                elif hand_sign_id == 3:
+                elif hand_sign_id == 3: # ok手势
                     func_ok(hand_gesture_history)
-                    pass
+
+                elif hand_sign_id == 5: # two 手势
+                    hands_max_num=func_two(hand_gesture_history,hands_max_num)
+                    if(func_work_status_flag==7):
+                        print("现在可识别最多手的数量为"+str(hands_max_num))
+                        hands = mp_hands.Hands(
+                        static_image_mode=use_static_image_mode,
+                        max_num_hands=hands_max_num,
+                        min_detection_confidence=min_detection_confidence,
+                        min_tracking_confidence=min_tracking_confidence,
+                    )
+                    
                 else:  
                     append_other_deque()
 
@@ -347,7 +359,7 @@ def main():
             debug_image = draw_image(debug_image)
             pass
         
-        # 保存最近的工作状态 判断最终输出结果 TODO
+        # 保存最近的工作状态 判断最终输出结果
         fwsf_history.appendleft(func_work_status_flag)
         #if(Counter(fwsf_history).most_common()[0][0]==6):
             #print(fwsf_history)
@@ -361,10 +373,10 @@ def main():
             elif("Clockwise" in func_res.func_op):
                 func_res.func_param=np.median(spin_angle_history)
                 func_string=func_res.func_op+":"+str(abs(func_res.func_param))
-
+            print("func_string "+func_string)
             print("双手张开手势结束 输出结果")
 
-        debug_image = draw_info(debug_image, func_string,func_work_status_flag, logMode, logNumber)
+        debug_image = draw_info(debug_image, func_string, func_work_status_flag, hands_max_num, logMode, logNumber)
 
         # 显示出来 #############################################################
         cv.imshow('CleverHand', debug_image)
@@ -796,8 +808,9 @@ def draw_pointer(image, point_history):
                       (152, 251, 152), 2)
     return image
 
-def draw_info(image, func_string,func_work_status_flag, logMode, number):
+def draw_info(image, func_string,func_work_status_flag, hands_max_num, logMode, number):
 #画面左上方打印当前动作等信息
+    image_width, image_height = image.shape[1], image.shape[0]
     if(func_work_status_flag):
         cv.putText(image, "Current action:" + func_string, (10, 30), cv.FONT_HERSHEY_SIMPLEX,
                 1.0, (0,0,0), 4, cv.LINE_AA)
@@ -808,6 +821,11 @@ def draw_info(image, func_string,func_work_status_flag, logMode, number):
                 1.0, (0,0,0), 4, cv.LINE_AA)
         cv.putText(image, "Last action:" + func_string, (10, 30), cv.FONT_HERSHEY_SIMPLEX,
                 1.0, (255, 255, 255), 2, cv.LINE_AA)
+    
+    cv.putText(image, "Hands max num:" + str(hands_max_num), (image_width-350, 30), cv.FONT_HERSHEY_SIMPLEX,
+                1.0, (0,0,0), 4, cv.LINE_AA)
+    cv.putText(image, "Hands max num:" + str(hands_max_num), (image_width-350, 30), cv.FONT_HERSHEY_SIMPLEX,
+                1.0, (255,255,255), 2, cv.LINE_AA)
 
     mode_string = ['Logging Key Point', 'Logging Point History']
     if 1 <= logMode <= 2:
@@ -1066,6 +1084,7 @@ def func_slide(hand_angle_history):
         func_string="Down"
     
 def func_ok(hand_gesture_history):
+    # 保持ok的功能
     global func_work_status_flag
     global func_string
     #print(hand_gesture_history)
@@ -1079,15 +1098,13 @@ def func_ok(hand_gesture_history):
         print("确定")
         func_work_status_flag=5
         func_string="Confirm"
-    #print(oknum)
-    pass
 
 def func_switch_two_open(firstLRFdata,LRF_line,LRF_angle,zoom_time_history,spin_angle_history):
-#对两个张开手势的运动结果的功能切换 TODO
+#对两个张开手势的运动结果的功能切换
     global func_work_status_flag
     global func_string
     func_work_status_flag=6
-    zoom_time_limit=2
+    zoom_time_limit=5
     spin_angle_limit=200
     LRF_line_sub=LRF_line-firstLRFdata.LRF_line
     LRF_angle_sub=LRF_angle-firstLRFdata.LRF_angle
@@ -1155,6 +1172,27 @@ def func_switch_two_open(firstLRFdata,LRF_line,LRF_angle,zoom_time_history,spin_
         func_op="Stay"
         return func_op,0
 
+def func_two(hand_gesture_history,hands_max_num):
+    #切换最大识别手的数量
+    global func_work_status_flag
+    global func_string
+    #print(hand_gesture_history)
+    twonum=0
+    for i in range(len(hand_gesture_history)): #
+        if hand_gesture_history[i]==5:
+            twonum=twonum+1
+        else:
+            break
+    if(twonum==20):
+        #print("old "+str(hands_max_num))
+        func_work_status_flag=7
+        func_string="max hands changed"
+        if hands_max_num==1:
+            return 2
+        elif hands_max_num==2:
+            return 1
+        
+    return hands_max_num
 
 if __name__ == '__main__':
     main()
