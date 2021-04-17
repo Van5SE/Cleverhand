@@ -270,7 +270,7 @@ def main():
                             firstLRFdata=firstLRF(LRF_point_history[0],LRF_point_history[1],LRF_line,LRF_angle)
                         elif (max(LRF_point_history)!=inf_LRF_line): #判断不要快速跳动
                             func_op,func_param=func_switch_two_open(firstLRFdata,LRF_line,LRF_angle,zoom_time_history,spin_angle_history)
-                            print("func_op param",func_op,func_param)
+                            # print("func_op param",func_op,func_param)
                             func_res=func_result(func_op,func_param)
                     
                     append_other_deque(LRF_point_history,zoom_time_history,spin_angle_history,firstLRF_1=firstLRFdata)
@@ -349,12 +349,12 @@ def main():
         
         # 保存最近的工作状态 判断最终输出结果 TODO
         fwsf_history.appendleft(func_work_status_flag)
-        if(Counter(fwsf_history).most_common()[0][0]==6):
-            print(fwsf_history)
+        #if(Counter(fwsf_history).most_common()[0][0]==6):
+            #print(fwsf_history)
         if(fwsf_history[1]==6 and fwsf_history[0]==0 and Counter(fwsf_history).most_common()[0][0]==6): #修改func_string 以及进行输出
-            print(func_res.func_op,func_res.func_param)
-            print("spin",spin_angle_history)
-            print("zoom",zoom_time_history)
+            #print(func_res.func_op,func_res.func_param)
+            #print("spin",spin_angle_history)
+            #print("zoom",zoom_time_history)
             if("Zoom"  in func_res.func_op):
                 func_res.func_param=np.median(zoom_time_history) #取中位数参数作为最终操作
                 func_string=func_res.func_op+":"+str(abs(func_res.func_param))
@@ -1087,6 +1087,8 @@ def func_switch_two_open(firstLRFdata,LRF_line,LRF_angle,zoom_time_history,spin_
     global func_work_status_flag
     global func_string
     func_work_status_flag=6
+    zoom_time_limit=2
+    spin_angle_limit=200
     LRF_line_sub=LRF_line-firstLRFdata.LRF_line
     LRF_angle_sub=LRF_angle-firstLRFdata.LRF_angle
     func_op=""
@@ -1094,33 +1096,58 @@ def func_switch_two_open(firstLRFdata,LRF_line,LRF_angle,zoom_time_history,spin_
     #print(LRF_line_sub,LRF_angle_sub)
     if(abs(LRF_line_sub)>0.3*firstLRFdata.LRF_line):
 
-        if(LRF_line_sub>0):
+        if(LRF_line_sub>0): #计算放大和缩小的倍数  如果大于limit 则将倍数置为0并输出zoom_wrong
             zoom_time=LRF_line_sub/firstLRFdata.LRF_line
-            zoom_time_history.appendleft(zoom_time)
-            print("放大：",abs(zoom_time))
-            func_op="Zoom on"
-            func_string=(func_op+":"+str(abs(zoom_time)))
+            if(abs(zoom_time)<zoom_time_limit):
+                print("放大：",abs(zoom_time))
+                func_op="Zoom on"
+                func_string=(func_op+":"+str(abs(zoom_time)))
+            else:
+                zoom_time=0
+                print("左右手识别错误")
+                func_op="Zoom wrong"
+                func_string=(func_op+":"+str(abs(zoom_time)))
+                
         elif(LRF_line_sub<0):
             zoom_time=LRF_line_sub/firstLRFdata.LRF_line*1.5
-            zoom_time_history.appendleft(zoom_time)
-            print("缩小：",abs(zoom_time))
-            func_op="Zoom out"
-            func_string=(func_op+":"+str(abs(zoom_time)))
+            if(abs(zoom_time)<zoom_time_limit):
+                print("缩小：",abs(zoom_time))
+                func_op="Zoom out"
+                func_string=(func_op+":"+str(abs(zoom_time)))
+            else:
+                zoom_time=0
+                print("左右手识别错误")
+                func_op="Zoom wrong"
+                func_string=(func_op+":"+str(abs(zoom_time)))
+
+        zoom_time_history.appendleft(zoom_time)
         return func_op,zoom_time
 
-    elif(abs(LRF_angle_sub)>10): 
+    elif(abs(LRF_angle_sub)>10): #同放大缩小
         if(LRF_angle_sub>0):
             spin_angle=LRF_angle_sub*2-20
-            spin_angle_history.appendleft(spin_angle)
-            print("顺时针旋转",abs(spin_angle),"度")
-            func_op="Clockwise"
-            func_string=(func_op+":"+str(abs(spin_angle))+"degree")
+            if(abs(spin_angle)<spin_angle_limit):
+                print("顺时针旋转",abs(spin_angle),"度")
+                func_op="Clockwise"
+                func_string=(func_op+":"+str(abs(spin_angle))+"degree")
+            else:
+                spin_angle=0
+                print("左右手识别错误")
+                func_op="Spin wrong"
+                func_string=(func_op+":"+str(abs(spin_angle)))
+
         elif(LRF_angle_sub<0):
             spin_angle=LRF_angle_sub*2+20
-            spin_angle_history.appendleft(spin_angle)
-            print("逆时针旋转",abs(spin_angle),"度")
-            func_op="C-Clockwise"
-            func_string=(func_op+":"+str(abs(spin_angle))+"degree")
+            if(abs(spin_angle)<spin_angle_limit):
+                print("逆时针旋转",abs(spin_angle),"度")
+                func_op="C-Clockwise"
+                func_string=(func_op+":"+str(abs(spin_angle))+"degree")
+            else:
+                spin_angle=0
+                print("左右手识别错误")
+                func_op="Spin wrong"
+                func_string=(func_op+":"+str(abs(spin_angle)))
+        spin_angle_history.appendleft(spin_angle)
         return func_op,spin_angle
     else:
         print("不动")
