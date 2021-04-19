@@ -38,4 +38,5 @@ python app.py
 │          
 └─utils
     └─cvfpscalc.py
-  
+</pre>
+运行程序前 使用 **pip install -r 'requirements.txt'** 命令安装所需的环境包后直接运行 cleveland.py  
