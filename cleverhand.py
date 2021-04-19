@@ -32,15 +32,15 @@ def get_args():
     parser.add_argument("--min_detection_confidence",
                         help='min_detection_confidence',
                         type=float,
-                        default=0.7)
+                        default=0.75)
     parser.add_argument("--min_tracking_confidence",
                         help='min_tracking_confidence',
-                        type=int,
-                        default=0.5)
+                        type=float,
+                        default=0.4)
 
     parser.add_argument("--inf_middle_hukou",type=float,default=9) #设定最大比值为9
     parser.add_argument("--open_middle_hukou",type=float,default=2) #大于2一般会被判定为张开手的状态
-    parser.add_argument("--close_middle_hukou",type=float,default=0.5) #在mouse中小于0.5认为食指和大拇指并上了
+    parser.add_argument("--close_middle_hukou",type=float,default=0.45) #在mouse中小于0.45认为食指和大拇指并上了
     parser.add_argument("--grab_close_middle_hukou",type=int,default=0.25)#在grab中阈值设为0.25 
     parser.add_argument("--inf_LRF_line",type=int,default=999) #设定左右手的最大间距为999
     parser.add_argument('--inf_hand_angle',type=int,default=999) #设定没有检测到手时的角度为999
@@ -79,6 +79,7 @@ def main():
     use_static_image_mode = args.use_static_image_mode
     min_detection_confidence = args.min_detection_confidence
     min_tracking_confidence = args.min_tracking_confidence
+
 
     global func_work_status_flag
     global func_string
@@ -315,10 +316,12 @@ def main():
                     debug_image = draw_pointer(debug_image, pointer_history)
 
                 elif hand_sign_id == 3: # ok手势
-                    func_ok(hand_gesture_history)
+                    nowNum = func_ok(hand_gesture_history)
+                    debug_image = draw_progress(debug_image,brect,nowNum,20)
 
                 elif hand_sign_id == 5: # two 手势
-                    hands_max_num=func_two(hand_gesture_history,hands_max_num)
+                    nowNum,hands_max_num=func_two(hand_gesture_history,hands_max_num)
+                    debug_image = draw_progress(debug_image,brect,nowNum,20)
                     if(func_work_status_flag==7):
                         print("现在可识别最多手的数量为"+str(hands_max_num))
                         hands = mp_hands.Hands(
@@ -857,6 +860,14 @@ def draw_mouse(image,point_1,point_2,middle_point=None):
         cv.circle(image, (middle_point[0], middle_point[1]), 10, (0,245,255), 1)
     return image
 
+def draw_progress(image,brect,nowNum,totalNum):
+    cv.putText(image, str(nowNum)+"/"+str(totalNum) , (brect[2]+5, brect[3]+5), cv.FONT_HERSHEY_SIMPLEX,
+                1.0, (0,0,0), 2, cv.LINE_AA)
+    cv.putText(image, str(nowNum)+"/"+str(totalNum) , (brect[2]+5, brect[3]+5), cv.FONT_HERSHEY_SIMPLEX,
+                1.0, (255,255,255), 1, cv.LINE_AA)
+    return image
+
+
 def func_mouse(image,mouse_point_history,middle_hukou_history):
 #执行鼠标功能 
     args = get_args()
@@ -1098,6 +1109,10 @@ def func_ok(hand_gesture_history):
         print("确定")
         func_work_status_flag=5
         func_string="Confirm"
+    if oknum>=20:
+        return 20
+    else:
+        return oknum
 
 def func_switch_two_open(firstLRFdata,LRF_line,LRF_angle,zoom_time_history,spin_angle_history):
 #对两个张开手势的运动结果的功能切换
@@ -1178,6 +1193,8 @@ def func_two(hand_gesture_history,hands_max_num):
     global func_string
     #print(hand_gesture_history)
     twonum=0
+    new_hands_max_num=hands_max_num
+
     for i in range(len(hand_gesture_history)): #
         if hand_gesture_history[i]==5:
             twonum=twonum+1
@@ -1188,11 +1205,15 @@ def func_two(hand_gesture_history,hands_max_num):
         func_work_status_flag=7
         func_string="max hands changed"
         if hands_max_num==1:
-            return 2
+            new_hands_max_num=2
         elif hands_max_num==2:
-            return 1
+            new_hands_max_num=1
+
+    if twonum>=20:
+        return 20,new_hands_max_num
+    else:
+        return twonum,new_hands_max_num
         
-    return hands_max_num
 
 if __name__ == '__main__':
     main()
