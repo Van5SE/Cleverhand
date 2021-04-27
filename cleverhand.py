@@ -136,7 +136,7 @@ def main():
     mouse_point_history = deque(maxlen=8) #指示鼠标、抓取等关键点的坐标点位置
     brect_history = deque(maxlen=2) #存储手的brect坐标
     LRF_point_history = deque(maxlen=2) #存储左右手指尖坐标的历史记录
-    hand_angle_history = deque(maxlen=16) #存储手的朝向角度的历史记录
+    hand_angle_history = deque(maxlen=12) #存储手的朝向角度的历史记录
     firstLRFdata = firstLRF() #存储下第一个左右手指数据
     hand_gesture_history = deque(maxlen=64) # 存储过往识别出的手势
     spin_angle_history = deque(maxlen=12) #存储旋转的角度数据
@@ -1257,17 +1257,17 @@ def func_slide(hand_angle_history):
             small_hand_angle_list.append(hand_angle_history[i])
 
 
-    #print(hand_angle_history)
+    print(hand_angle_history)
     #print(len(big_hand_angle_list))
     #print(len(small_hand_angle_list))
 
     if deque.count(hand_angle_history,0)>=6:
         pass
-    elif hand_angle_history[0]<0 and hand_angle_history[-1]>0 and len(neg_hand_angle_list)==4 and len(pos_hand_angle_list)>=6 and hand_angle_history[-1]-hand_angle_history[0]>40:
+    elif hand_angle_history[0]<0 and hand_angle_history[-1]>0 and len(neg_hand_angle_list)==3 and len(pos_hand_angle_list)>=5 and hand_angle_history[-1]-hand_angle_history[0]>40:
         print("下一张")
         func_work_status_flag=3
         func_string="Next One"
-    elif hand_angle_history[0]>0 and hand_angle_history[-1]<0 and len(pos_hand_angle_list)==4 and len(neg_hand_angle_list)>=6 and hand_angle_history[0]-hand_angle_history[-1]>40:
+    elif hand_angle_history[0]>0 and hand_angle_history[-1]<0 and len(pos_hand_angle_list)==3 and len(neg_hand_angle_list)>=5 and hand_angle_history[0]-hand_angle_history[-1]>40:
         print("上一张")
         func_work_status_flag=3
         func_string="Last One"
