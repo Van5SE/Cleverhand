@@ -12,7 +12,8 @@ import numpy as np
 import mediapipe as mp
 
 import wx
-from pynput.mouse import Button, Controller
+from pynput.mouse import Button, Controller as mController
+from pynput.keyboard import Key, Controller as kController
 
 from model import KeyPointClassifier
 from model import PointHistoryClassifier
@@ -24,7 +25,7 @@ from utils import func_result
 def get_args():
     parser = argparse.ArgumentParser()
     #没有后置 前置摄像头为0 有后置 前置摄像头为1
-    parser.add_argument("--device", type=int, default=0)
+    parser.add_argument("--device", type=int, default=1)
     parser.add_argument("--cwidth", help='cap width', type=int, default=1280)
     parser.add_argument("--cheight", help='cap height', type=int, default=720)
 
@@ -89,6 +90,7 @@ def main():
     global func_string
     global work_mode
     use_brect = True
+    keyboard=kController()
 
     # 准备相机 ###############################################################
     cap = cv.VideoCapture(cap_device)
@@ -262,7 +264,7 @@ def main():
                 if work_mode==0:
 
                     if hand_sign_id == 0 and hand_gesture_history[1] == 0 and len(results.multi_handedness)==2 : # 张开手掌的两只手手势
-                        print(hand_gesture_history)
+                        #print(hand_gesture_history)
                         if(handedness.classification[0].label[0:]=="Right"):
                             LRF_point_history[1]=landmark_list[8]
                         elif(handedness.classification[0].label[0:]=="Left"):
@@ -284,9 +286,6 @@ def main():
                                 func_res=func_result(func_op,func_param)
                         
                         append_other_deque(LRF_point_history,zoom_time_history,spin_angle_history,firstLRF_1=firstLRFdata)
-
-                        # print("zoom:",zoom_time_history) #两个数组后续可能被用在稳定其求解上
-                        # print("spin:",spin_angle_history)
 
                     elif hand_sign_id == 0 and len(results.multi_handedness)==1 : # 张开手掌的一只手手势
                         hand_angle=calc_hand_angle(landmark_list[0],landmark_list[9])
@@ -361,7 +360,7 @@ def main():
                         append_other_deque()
                 
                 elif work_mode==1: #ppt模式
-                    print("PPT")
+                    #print("PPT")
                     if hand_sign_id == 6:
                         nowNum = func_three(hand_gesture_history)
                         if (nowNum>20):
@@ -372,7 +371,85 @@ def main():
                             print("进入选择模式")
                             func_string="Change Work Mode"
                             break
-                    pass
+
+                    elif hand_sign_id == 0 and hand_gesture_history[1] == 0 and len(results.multi_handedness)==2 : # 缩放PPT
+                        #print(hand_gesture_history)
+                        if(handedness.classification[0].label[0:]=="Right"):
+                            LRF_point_history[1]=landmark_list[8]
+                        elif(handedness.classification[0].label[0:]=="Left"):
+                            LRF_point_history[0]=landmark_list[8] # 0存储左手位置 1存储右手位置
+                        
+                        if(LRF_point_history[1]!=[0,0] and LRF_point_history[0]!=[0,0]): #LRF=Left Right Finger
+                            LRF_line=int(calc_middle_line(LRF_point_history[0],LRF_point_history[1])/cap_width*500) # 将长度归一化
+                            if(LRF_line==0):
+                                LRF_line=1
+                            debug_image=draw_mouse(debug_image,LRF_point_history[0],LRF_point_history[1])
+                            LRF_angle=calc_angle(LRF_point_history[0],LRF_point_history[1]) #计算得到LRFangle
+                            #print(LRFangle)
+
+                            if(firstLRFdata.leftF==None and max(LRF_point_history)!=inf_LRF_line):
+                                firstLRFdata=firstLRF(LRF_point_history[0],LRF_point_history[1],LRF_line,LRF_angle)
+                            elif (max(LRF_point_history)!=inf_LRF_line): #判断不要快速跳动
+                                func_op,func_param=func_switch_two_open(firstLRFdata,LRF_line,LRF_angle,zoom_time_history,spin_angle_history)
+                                # print("func_op param",func_op,func_param)
+                                func_res=func_result(func_op,func_param)
+                        
+                        append_other_deque(LRF_point_history,zoom_time_history,spin_angle_history,firstLRF_1=firstLRFdata)
+
+                    elif hand_sign_id == 0 and len(results.multi_handedness)==1 : # 上下切换PPT
+                        hand_angle=calc_hand_angle(landmark_list[0],landmark_list[9])
+                        hand_angle_history.appendleft(hand_angle)
+                        func_slide(hand_angle_history)
+                        append_other_deque(hand_angle_history)
+                        if (func_work_status_flag==3):
+                            if func_string=="Next One":
+                                keyboard.press(Key.right)
+                                keyboard.release(Key.right)
+                            elif func_string=="Last One":
+                                keyboard.press(Key.left)
+                                keyboard.release(Key.left)
+                        
+                    elif hand_sign_id == 1:   # 鼠标
+                        middle_line=calc_middle_line(landmark_list[8],landmark_list[4]) #计算中间线长度
+                        hukou_line=calc_hukou_line(landmark_list[2],landmark_list[5]) #计算虎口长度
+
+                        middle_hukou_history.appendleft(middle_line/hukou_line)
+                        mouse_point_history.appendleft(landmark_list[12])
+                        append_other_deque(middle_hukou_history,mouse_point_history) #记录数据
+
+                        debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],mouse_point_history[0]) #画出中间线
+                        func_mouse(debug_image,mouse_point_history,middle_hukou_history)
+
+                    elif hand_sign_id == 2:   # 抓取
+                        middle_point=calc_middle_point(landmark_list[8],landmark_list[4]) #计算中间点
+                        middle_line=calc_middle_line(landmark_list[8],landmark_list[4]) #计算中间线长度
+                        hukou_line=calc_hukou_line(landmark_list[0],landmark_list[5]) #grab动作的虎口改为计算掌根到食指关节长度
+
+                        middle_hukou_history.appendleft(middle_line/hukou_line)
+                        mouse_point_history.appendleft(middle_point) #用两连线中点作为鼠标位置
+                        append_other_deque(middle_hukou_history,mouse_point_history) #记录数据
+
+                        debug_image=draw_mouse(debug_image,landmark_list[8],landmark_list[4],mouse_point_history[0]) #画出中间线
+                        func_grab(debug_image,mouse_point_history,middle_hukou_history)
+
+                    elif hand_sign_id == 3: # 播放 播放PPT
+                        nowNum = func_ok(hand_gesture_history)
+                        if (nowNum>20):
+                            nowNum=20
+                        debug_image = draw_progress(debug_image,brect,nowNum,20)
+                        if (func_work_status_flag==5):
+                            keyboard.press(Key.f5)
+                            keyboard.release(Key.f5)
+
+                    elif hand_sign_id == 7: #zero 结束播放PPT
+                        nowNum = func_zero(hand_gesture_history)
+                        if (nowNum>20):
+                            nowNum=20
+                        debug_image = draw_progress(debug_image,brect,nowNum,20)
+                        if (func_work_status_flag==9):
+                            keyboard.press(Key.esc)
+                            keyboard.release(Key.esc)
+
 
                 elif work_mode==2: #2模式
                     print("two")
@@ -386,7 +463,8 @@ def main():
                             print("进入选择模式")
                             func_string="Change Work Mode"
                             break
-                    pass
+                   
+
 
                 elif work_mode==10: #切换模式
                     print("处于选择模式")
@@ -429,7 +507,6 @@ def main():
                             work_mode=10
                             print("进入选择模式")
                             func_string="Change Work Mode"
-                            break
                     
                     else:
                         append_other_deque()
@@ -473,6 +550,13 @@ def main():
                 func_string=func_res.func_op+":"+str(abs(func_res.func_param))
             print("func_string "+func_string)
             print("双手张开手势结束 输出结果")
+            if work_mode==1: #ppt模式
+                if func_res.func_op=="Zoom on":
+                    keyboard.press('=')
+                    keyboard.release('=')
+                elif func_res.func_op=="Zoom out":
+                    keyboard.press('-')
+                    keyboard.release('-')
 
         debug_image = draw_info(debug_image, func_string, func_work_status_flag, hands_max_num, logMode, logNumber)
 
@@ -996,7 +1080,7 @@ def func_mouse(image,mouse_point_history,middle_hukou_history):
         else :
             open_mh_array.append(middle_hukou_history[i])
     
-    mouse=Controller()
+    mouse=mController()
     if max(middle_hukou_history)==inf_middle_hukou:
         pass #存在过往误判 鼠标初始化未完成 不进行操作
     elif len(close_mh_array)>6:
@@ -1073,7 +1157,7 @@ def func_grab(image,mouse_point_history,middle_hukou_history):
         else :
             open_mh_array.append(middle_hukou_history[i])
     
-    mouse=Controller()
+    mouse=mController()
     if max(middle_hukou_history)==inf_middle_hukou:
         pass #存在过往误判 鼠标初始化未完成 不进行操作
     elif len(close_mh_array)>=4:
