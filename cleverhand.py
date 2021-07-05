@@ -25,7 +25,7 @@ from utils import func_result
 def get_args():
     parser = argparse.ArgumentParser()
     #没有后置 前置摄像头为0 有后置 前置摄像头为1
-    parser.add_argument("--device", type=int, default=1)
+    parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--cwidth", help='cap width', type=int, default=1280)
     parser.add_argument("--cheight", help='cap height', type=int, default=720)
 
@@ -42,7 +42,7 @@ def get_args():
     parser.add_argument("--inf_middle_hukou",type=float,default=9) #设定最大比值为9
     parser.add_argument("--open_middle_hukou",type=float,default=2) #大于2一般会被判定为张开手的状态
     parser.add_argument("--close_middle_hukou",type=float,default=0.45) #在mouse中小于0.45认为食指和大拇指并上了
-    parser.add_argument("--grab_close_middle_hukou",type=int,default=0.25)#在grab中阈值设为0.25 
+    parser.add_argument("--grab_close_middle_hukou",type=int,default=0.3)#在grab中阈值设为0.3
     parser.add_argument("--inf_LRF_line",type=int,default=999) #设定左右手的最大间距为999
     parser.add_argument('--inf_hand_angle',type=int,default=999) #设定没有检测到手时的角度为999
 
@@ -1257,7 +1257,7 @@ def func_slide(hand_angle_history):
             small_hand_angle_list.append(hand_angle_history[i])
 
 
-    print(hand_angle_history)
+    #print(hand_angle_history)
     #print(len(big_hand_angle_list))
     #print(len(small_hand_angle_list))
 
