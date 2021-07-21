@@ -10,6 +10,7 @@ from collections import deque
 import cv2 as cv
 import numpy as np
 import mediapipe as mp
+from numpy.core.numeric import True_
 
 import wx
 from pynput.mouse import Button, Controller as mController
@@ -68,7 +69,7 @@ right_button_flag=False
 func_string="Unknow"
 func_work_status_flag=0
 fwsf_history=deque(maxlen=8) #fwsf=func_work_status_flag
-work_mode=0 #工作模式 0：基础 1：PPT 10：选择模式
+work_mode=1 #工作模式 0：基础 1：PPT 10：选择模式 2:结合人脸识别
 
 def main():
     # 参数解析 #################################################################
@@ -98,7 +99,7 @@ def main():
     cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
 
     # 加载模型 #############################################################
-    mp_hands = mp.solutions.hands
+    mp_hands = mp.solutions.hands  #手部识别
     hands_max_num=2
     hands = mp_hands.Hands(
         static_image_mode=use_static_image_mode,
@@ -106,6 +107,13 @@ def main():
         min_detection_confidence=min_detection_confidence,
         min_tracking_confidence=min_tracking_confidence,
     )
+
+    mp_face_detection = mp.solutions.face_detection  #脸部识别
+    face_detection = mp_face_detection.FaceDetection(
+        min_detection_confidence=0.6
+    )
+
+    mp_drawing = mp.solutions.drawing_utils #画笔
 
     keypoint_classifier = KeyPointClassifier()
 
@@ -209,30 +217,61 @@ def main():
         ret, image = cap.read()
         if not ret:
             break
+
         image = cv.flip(image, 1)  # 镜像显示
         debug_image = copy.deepcopy(image)
+
+        
+        image_width,image_height=image.shape[1],image.shape[0]
 
         # 检测手部信息 #############################################################
         image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
         # 可以通过修改image的范围大小限定只识别这个区域内的手 待完善
 
         image.flags.writeable = False
-        results = hands.process(image)
+
+        if (work_mode==2):
+            face_results=face_detection.process(image)
+            if face_results.detections is not None:
+                for face in face_results.detections:
+                    location_data=face.location_data
+                    rBB=location_data.relative_bounding_box
+                    
+                    face_size=calc_face_image(rBB,image_width,image_height)
+                    
+            hand_results = hands.process(image)
+            
+        else:
+            hand_results = hands.process(image)
         image.flags.writeable = True
 
         func_work_status_flag=0
 
+        if (work_mode==2):
+            if face_results.detections is not None:
+                for face in face_results.detections:
+                    mp_drawing.draw_detection(debug_image, face)
+
         #  ####################################################################
-        if results.multi_hand_landmarks is not None:
-            for hand_landmarks, handedness,i in zip(results.multi_hand_landmarks,
-                                                  results.multi_handedness,
-                                                  range(len(results.multi_hand_landmarks))):
+        if hand_results.multi_hand_landmarks is not None:
+            for hand_landmarks, handedness,i in zip(hand_results.multi_hand_landmarks,
+                                                  hand_results.multi_handedness,
+                                                  range(len(hand_results.multi_hand_landmarks))):
                 # 计算手的外接矩形
                 brect = calc_bounding_rect(debug_image, hand_landmarks)
-                if(len(results.multi_hand_landmarks)==2 and i==0): #预先计算出两个矩形的重叠面积占比 大的那个不画出来
-                    brect_1 = calc_bounding_rect(debug_image,results.multi_hand_landmarks[1])
+
+                if work_mode==2:
+                    brect_size = (brect[2]-brect[0])*(brect[3]-brect[1])
+                    #print(brect_size/face_size)
+                    if(brect_size/face_size<0.1 or brect_size/face_size>4):
+                        print("存在一个识别面积不合理的手 已跳过显示")
+                        continue
+
+                if(len(hand_results.multi_hand_landmarks)==2 and i==0): #预先计算出两个矩形的重叠面积占比 大的那个不画出来
+                    brect_1 = calc_bounding_rect(debug_image,hand_results.multi_hand_landmarks[1])
                     brect_history[0]=brect
                     brect_history[1]=brect_1
+                    #print(brect_history)
                     #print(brect_history) #计算brect_history 两矩阵的重叠面积是否超过60% 得到是否跳过的命令
                     overlap_area=calc_overlap_rect_area(brect_history[0],brect_history[1])
                     brect0_area=calc_rect_area(brect_history[0])
@@ -240,7 +279,7 @@ def main():
                     #print(overlap_area,brect0_area,brect1_area)
                     #print(overlap_area/brect0_area,overlap_area/brect1_area)
                     if (max(overlap_area/brect0_area,overlap_area/brect1_area)>=0.6):
-                        print("存在一个识别错误的手 已将面积小的跳过显示")
+                        print("两手间存在一个识别错误的手 已将面积小的跳过显示")
                         continue
                 else:
                     brect_history[0]=0
@@ -263,7 +302,7 @@ def main():
                 
                 if work_mode==0:
 
-                    if hand_sign_id == 0 and hand_gesture_history[1] == 0 and len(results.multi_handedness)==2 : # 张开手掌的两只手手势
+                    if hand_sign_id == 0 and hand_gesture_history[1] == 0 and len(hand_results.multi_handedness)==2 : # 张开手掌的两只手手势
                         #print(hand_gesture_history)
                         if(handedness.classification[0].label[0:]=="Right"):
                             LRF_point_history[1]=landmark_list[8]
@@ -287,7 +326,7 @@ def main():
                         
                         append_other_deque(LRF_point_history,zoom_time_history,spin_angle_history,firstLRF_1=firstLRFdata)
 
-                    elif hand_sign_id == 0 and len(results.multi_handedness)==1 : # 张开手掌的一只手手势
+                    elif hand_sign_id == 0 and len(hand_results.multi_handedness)==1 : # 张开手掌的一只手手势
                         hand_angle=calc_hand_angle(landmark_list[0],landmark_list[9])
                         hand_angle_history.appendleft(hand_angle)
                         func_slide(hand_angle_history)
@@ -372,7 +411,7 @@ def main():
                             func_string="Change Work Mode"
                             break
 
-                    elif hand_sign_id == 0 and hand_gesture_history[1] == 0 and len(results.multi_handedness)==2 : # 缩放PPT
+                    elif hand_sign_id == 0 and hand_gesture_history[1] == 0 and len(hand_results.multi_handedness)==2 : # 缩放PPT
                         #print(hand_gesture_history)
                         if(handedness.classification[0].label[0:]=="Right"):
                             LRF_point_history[1]=landmark_list[8]
@@ -396,7 +435,7 @@ def main():
                         
                         append_other_deque(LRF_point_history,zoom_time_history,spin_angle_history,firstLRF_1=firstLRFdata)
 
-                    elif hand_sign_id == 0 and len(results.multi_handedness)==1 : # 上下切换PPT
+                    elif hand_sign_id == 0 and len(hand_results.multi_handedness)==1 : # 上下切换PPT
                         hand_angle=calc_hand_angle(landmark_list[0],landmark_list[9])
                         hand_angle_history.appendleft(hand_angle)
                         func_slide(hand_angle_history)
@@ -450,9 +489,18 @@ def main():
                             keyboard.press(Key.esc)
                             keyboard.release(Key.esc)
 
+                    elif hand_sign_id == 4: # 播放 暂停视频（输出空格）
+                        nowNum = func_one(hand_gesture_history)
+                        if (nowNum>20):
+                            nowNum=20
+                        debug_image = draw_progress(debug_image,brect,nowNum,20)
+                        if (func_work_status_flag==10):
+                            keyboard.press(Key.space)
+                            keyboard.release(Key.space)
+                            
 
                 elif work_mode==2: #2模式
-                    print("two")
+                    # print("two")
                     if hand_sign_id == 6:
                         nowNum = func_three(hand_gesture_history)
                         if (nowNum>20):
@@ -495,8 +543,8 @@ def main():
                         debug_image = draw_progress(debug_image,brect,nowNum,20)
                         if(func_work_status_flag==7):
                             work_mode=2
-                            print("进入2模式")
-                            func_string="Change to 2"
+                            print("进入人脸识别模式")
+                            func_string="Change to Face Detections"
                     
                     elif hand_sign_id == 6:
                         nowNum = func_three(hand_gesture_history)
@@ -693,6 +741,12 @@ def calc_rect_area(rect):
     lens=rect[3]-rect[1]
     wide=rect[2]-rect[0]
     return lens*wide
+
+def calc_face_image(rBB,image_width,image_height):
+    face_size=int(rBB.width*image_width)*int(rBB.height*image_height)
+    #print(face_size)
+    return face_size
+
 
 def pre_process_landmark(landmark_list):
     temp_landmark_list = copy.deepcopy(landmark_list)
@@ -995,9 +1049,9 @@ def draw_info(image, func_string,func_work_status_flag, hands_max_num, logMode, 
     image_width, image_height = image.shape[1], image.shape[0]
 
     if work_mode==10:
-        cv.putText(image, "1:PPT 2:temp 3:choose 0:normal", (10, 30),cv.FONT_HERSHEY_SIMPLEX,
+        cv.putText(image, "1:PPT 2:FaceDect 3:choose 0:normal", (10, 30),cv.FONT_HERSHEY_SIMPLEX,
                     1.0, (0,0,0), 4, cv.LINE_AA)
-        cv.putText(image, "1:PPT 2:temp 3:choose 0:normal", (10, 30),cv.FONT_HERSHEY_SIMPLEX,
+        cv.putText(image, "1:PPT 2:FaceDect 3:choose 0:normal", (10, 30),cv.FONT_HERSHEY_SIMPLEX,
                     1.0, (255,255,255), 2, cv.LINE_AA)
     else:
         if(func_work_status_flag):
